@@ -1,10 +1,10 @@
 "use client"
 
 import React from "react"
+import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { GamepadDirectional } from "lucide-react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
-import { Badge } from "../ui/badge"
 
 const Header: React.FC = () => {
   const { selectedSeats, step, setStep } = useBookingStore()
@@ -13,17 +13,29 @@ const Header: React.FC = () => {
     switch (step) {
       case BookingStep.MAP:
         return (
-          <Button onClick={() => setStep(BookingStep.REVIEW)}>
-            Proceed to Checkout
+          <Button
+            onClick={() => setStep(BookingStep.REVIEW)}
+            disabled={selectedSeats.length === 0}
+            className="flex items-center gap-2"
+          >
+            Review Selection
             {selectedSeats.length > 0 && (
-              <Badge variant="secondary">{selectedSeats.length}</Badge>
+              <Badge className="ml-1 h-5 rounded-full px-1.5 text-[10px]">
+                {selectedSeats.length}
+              </Badge>
             )}
           </Button>
         )
+
       case BookingStep.REVIEW:
-        return <Button onClick={() => setStep(BookingStep.MAP)}>Back</Button>
+        return (
+          <Button variant="outline" onClick={() => setStep(BookingStep.MAP)}>
+            Edit Seats
+          </Button>
+        )
+
       case BookingStep.CONFIRM:
-        return <Button onClick={() => setStep(BookingStep.REVIEW)}>Back</Button>
+        return <span className="w-20" />
     }
   }, [step, selectedSeats, setStep])
 

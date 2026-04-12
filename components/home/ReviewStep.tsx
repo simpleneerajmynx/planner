@@ -4,6 +4,8 @@ import React from "react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
 import { Seat } from "@/types/seat"
 import { GamepadDirectional } from "lucide-react"
+import { Card } from "../ui/card"
+import { Button } from "../ui/button"
 
 const CATEGORY_LABEL: Record<Seat["category"], string> = {
   floor: "Floor",
@@ -20,17 +22,11 @@ const ReviewStep: React.FC = () => {
   const total = subtotal + fee
 
   return (
-    <div className="flex min-h-0 flex-col items-center justify-center overflow-auto px-4 py-12">
-      <div
-        className="animate-slide-up w-full max-w-2xl overflow-hidden rounded-2xl"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border-subtle)",
-        }}
-      >
+    <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-8">
+      <Card className="animate-slide-up flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl shadow-2xl drop-shadow-md">
         {/* Header */}
         <div
-          className="px-8 py-6"
+          className="shrink-0 px-8 py-6"
           style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
           <button
@@ -73,7 +69,7 @@ const ReviewStep: React.FC = () => {
 
         {/* Event Info */}
         <div
-          className="flex items-center gap-4 px-8 py-5"
+          className="flex shrink-0 items-center gap-4 px-8 py-5"
           style={{
             borderBottom: "1px solid var(--border-subtle)",
             background: "rgba(59,130,246,0.04)",
@@ -112,71 +108,68 @@ const ReviewStep: React.FC = () => {
         </div>
 
         {/* Seats List */}
-        <div className="px-8 py-5">
-          <div className="space-y-2">
-            {selectedSeats.map((seat, i) => (
-              <div
-                key={seat.id}
-                className="animate-fade-in flex items-center justify-between py-3"
-                style={{
-                  borderBottom:
-                    i < selectedSeats.length - 1
-                      ? "1px solid var(--border-subtle)"
-                      : "none",
-                  animationDelay: `${i * 50}ms`,
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold"
-                    style={{
-                      background: "rgba(34,197,94,0.1)",
-                      color: "#22c55e",
-                      fontFamily: "var(--font-mono)",
-                      border: "1px solid rgba(34,197,94,0.15)",
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-primary)",
-                        fontFamily: "var(--font-mono)",
-                      }}
-                    >
-                      Section {seat.section} · Row {seat.row} · Seat{" "}
-                      {seat.number}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-muted)",
-                        marginTop: 1,
-                      }}
-                    >
-                      {CATEGORY_LABEL[seat.category]}
-                    </div>
-                  </div>
-                </div>
+        <div className="flex min-h-0 flex-1 flex-col space-y-2 overflow-y-auto px-8 py-5">
+          {selectedSeats.map((seat, i) => (
+            <div
+              key={seat.id}
+              className="animate-fade-in flex items-center justify-between py-3"
+              style={{
+                borderBottom:
+                  i < selectedSeats.length - 1
+                    ? "1px solid var(--border-subtle)"
+                    : "none",
+                animationDelay: `${i * 50}ms`,
+              }}
+            >
+              <div className="flex items-center gap-3">
                 <span
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold"
                   style={{
+                    background: "rgba(34,197,94,0.1)",
+                    color: "#22c55e",
                     fontFamily: "var(--font-mono)",
-                    fontSize: 14,
-                    color: "var(--text-primary)",
+                    border: "1px solid rgba(34,197,94,0.15)",
                   }}
                 >
-                  ${seat.price}
+                  {i + 1}
                 </span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--text-primary)",
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    Section {seat.section} · Row {seat.row} · Seat {seat.number}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                      marginTop: 1,
+                    }}
+                  >
+                    {CATEGORY_LABEL[seat.category]}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 14,
+                  color: "var(--text-primary)",
+                }}
+              >
+                ${seat.price}
+              </span>
+            </div>
+          ))}
         </div>
 
         {/* Totals */}
         <div
-          className="px-8 py-5"
+          className="shrink-0 px-8 py-5"
           style={{
             borderTop: "1px solid var(--border-subtle)",
             background: "var(--bg-elevated)",
@@ -230,24 +223,16 @@ const ReviewStep: React.FC = () => {
         </div>
 
         {/* CTA */}
-        <div className="px-8 pt-5 pb-8">
-          <button
+        <div className="flex shrink-0 items-center justify-center px-8 pt-5 pb-8">
+          <Button
+            size={"lg"}
             onClick={() => setStep(BookingStep.CONFIRM)}
-            className="w-full rounded-xl py-4 font-bold text-white transition-all duration-200 hover:opacity-90 active:scale-[0.99]"
-            style={{
-              background: "linear-gradient(135deg, #16a34a, #22c55e)",
-              fontFamily: "var(--font-display)",
-              letterSpacing: 3,
-              fontSize: 16,
-              border: "none",
-              cursor: "pointer",
-              boxShadow: "0 8px 32px rgba(34,197,94,0.3)",
-            }}
+            className="w-full"
           >
             CONFIRM &amp; PAY ${total}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }
