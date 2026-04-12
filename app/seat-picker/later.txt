@@ -1,0 +1,360 @@
+"use client"
+
+import * as d3 from "d3"
+import Minimap from "./minimap"
+import { useEffect, useRef, useState, useCallback } from "react"
+import { HitZone, Seat, Section, SelectedSeat, ViewRect } from "./types"
+import {
+  buildSections,
+  COLOR_AVAILABLE,
+  COLOR_BG,
+  COLOR_HOVER,
+  COLOR_SELECTED,
+  COLOR_SOLD,
+  H,
+  HIT_ZONES,
+  SEAT_R,
+  BLOCK_BACKGROUNDS,
+  SECTION_GROUPS,
+  W,
+  ZOOM_IN_SCALE,
+} from "./create-data"
+
+export default function StadiumSeatSelector() {
+  const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  const currentScaleRef = useRef(1)
+  const sectionsRef = useRef<Section[]>(buildSections())
+
+  console.log(sectionsRef.current)
+  const [selectedSeats, setSelectedSeats] = useState<Map<string, SelectedSeat>>(
+    new Map()
+  )
+  const [zoomedGroup, setZoomedGroup] = useState<string | null>(null)
+  const [tooltip, setTooltip] = useState<{
+    x: number
+    y: number
+    seat: Seat
+  } | null>(null)
+  const [hintDone, setHintDone] = useState(false)
+  const [seatsUnlocked, setSeatsUnlocked] = useState(false)
+  // Minimap viewport rect (in SVG viewBox coordinates)
+  const [viewRect, setViewRect] = useState<ViewRect>({ x: 0, y: 0, w: W, h: H })
+
+  const totalPrice = Array.from(selectedSeats.values()).reduce(
+    (s, a) => s + a.price,
+    0
+  )
+
+  // ── Update minimap viewport rect from current D3 transform ────────────────
+  const updateMinimap = useCallback((transform: d3.ZoomTransform) => {
+    const el = svgRef.current
+    if (!el) return
+    const vw = el.clientWidth || W
+    const vh = el.clientHeight || H
+    // Inverse transform: screen corners → SVG coords
+    const x = -transform.x / transform.k
+    const y = -transform.y / transform.k
+    const rw = vw / transform.k
+    const rh = vh / transform.k
+    setViewRect({ x, y, w: rw, h: rh })
+  }, [])
+
+  // ── Pan main map when clicking minimap ────────────────────────────────────
+  const handleMinimapClick = useCallback((nx: number, ny: number) => {
+    if (!svgRef.current || !zoomRef.current) return
+    const el = svgRef.current
+    const vw = el.clientWidth || W
+    const vh = el.clientHeight || H
+    const k = currentScaleRef.current
+    // Convert normalized minimap click → SVG coords → translated transform
+    const tx = vw / 2 - nx * W * k
+    const ty = vh / 2 - ny * H * k
+    d3.select(svgRef.current)
+      .transition()
+      .duration(300)
+      .ease(d3.easeCubicOut)
+      .call(
+        zoomRef.current.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(k)
+      )
+  }, [])
+
+  // ── Zoom to group ─────────────────────────────────────────────────────────
+  const zoomToGroup = useCallback((groupId: string) => {
+    if (!svgRef.current || !zoomRef.current) return
+    const ids = SECTION_GROUPS[groupId] ?? []
+    const group = sectionsRef.current.filter((s) => ids.includes(s.id))
+    if (!group.length) return
+
+    const minX = Math.min(...group.map((s) => s.minX ?? 0)) - 28
+    const maxX = Math.max(...group.map((s) => s.maxX ?? 0)) + 28
+    const minY = Math.min(...group.map((s) => s.minY ?? 0)) - 28
+    const maxY = Math.max(...group.map((s) => s.maxY ?? 0)) + 28
+
+    const el = svgRef.current
+    const vw = el.clientWidth || W
+    const vh = el.clientHeight || H
+    const bw = maxX - minX,
+      bh = maxY - minY
+    const scale = Math.max(ZOOM_IN_SCALE, Math.min(vw / bw, vh / bh) * 0.82)
+    const tx = vw / 2 - scale * (minX + bw / 2)
+    const ty = vh / 2 - scale * (minY + bh / 2)
+
+    setSeatsUnlocked(false)
+
+    d3.select(svgRef.current)
+      .transition()
+      .duration(650)
+      .ease(d3.easeCubicInOut)
+      .call(
+        zoomRef.current.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(scale)
+      )
+      .on("end", () => {
+        d3.select(svgRef.current!)
+          .selectAll<SVGCircleElement, Seat>("circle.seat")
+          .style("pointer-events", "all")
+        d3.select(svgRef.current!)
+          .selectAll<SVGRectElement, HitZone>("rect.hit")
+          .style("pointer-events", "none")
+        setSeatsUnlocked(true)
+      })
+
+    setZoomedGroup(groupId)
+    setHintDone(true)
+  }, [])
+
+  // ── Reset zoom ────────────────────────────────────────────────────────────
+  const resetZoom = useCallback(() => {
+    if (!svgRef.current || !zoomRef.current) return
+    d3.select(svgRef.current)
+      .selectAll<SVGCircleElement, Seat>("circle.seat")
+      .style("pointer-events", "none")
+    d3.select(svgRef.current)
+      .selectAll<SVGRectElement, HitZone>("rect.hit")
+      .style("pointer-events", "all")
+    d3.select(svgRef.current)
+      .transition()
+      .duration(500)
+      .ease(d3.easeCubicInOut)
+      .call(zoomRef.current.transform, d3.zoomIdentity)
+    setZoomedGroup(null)
+    setSeatsUnlocked(false)
+    setTooltip(null)
+  }, [])
+
+  // ── D3 init ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!svgRef.current) return
+
+    const svg = d3.select(svgRef.current)
+    svg.selectAll("*").remove()
+    svg
+      .attr("viewBox", `0 0 ${W} ${H}`)
+      .attr("width", "100%")
+      .attr("height", "100%")
+      .style("background", COLOR_BG)
+      .style("cursor", "grab")
+
+    const root = svg.append("g").attr("class", "root")
+
+    // Zoom
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.5, 14])
+      .on("zoom", (event) => {
+        root.attr("transform", event.transform)
+        currentScaleRef.current = event.transform.k
+        updateMinimap(event.transform)
+      })
+
+    zoomRef.current = zoom
+    svg.call(zoom)
+    svg.on("dblclick.zoom", null)
+    svg.on("dblclick", () => resetZoom())
+
+    // Initial minimap state
+    updateMinimap(d3.zoomIdentity)
+
+    // ── Block Backgrounds ──────────────────────────────────────────────────
+    const blocksLayer = root.append("g").attr("class", "blocks-layer")
+
+    BLOCK_BACKGROUNDS.forEach((b) => {
+      const g = blocksLayer.append("g")
+
+      if (b.rotate) {
+        g.attr(
+          "transform",
+          `translate(${b.cx}, ${b.cy}) rotate(${b.rotate}) translate(${-b.cx}, ${-b.cy})`
+        )
+      }
+
+      g.append("rect")
+        .attr("x", b.x)
+        .attr("y", b.y)
+        .attr("width", b.w)
+        .attr("height", b.h)
+        .attr("rx", b.rx ?? b.rxTop ?? 4)
+        .attr("fill", b.fill)
+        .attr("stroke", b.fill === "#ffffff" ? "#eff0f2" : "none")
+        .attr("stroke-width", b.fill === "#ffffff" ? 1 : 0)
+
+      if (b.text) {
+        // the user requested to remove the D3 text code here so they can write it in JSX
+      }
+    })
+
+    // ── Hit zones ────────────────────────────────────────────────────────────
+    // root
+    //   .append("g")
+    //   .attr("class", "hit-layer")
+    //   .selectAll<SVGRectElement, HitZone>("rect.hit")
+    //   .data(HIT_ZONES)
+    //   .join("rect")
+    //   .attr("class", "hit")
+    //   .attr("x", (d) => d.x)
+    //   .attr("y", (d) => d.y)
+    //   .attr("width", (d) => d.w)
+    //   .attr("height", (d) => d.h)
+    //   .attr("fill", "transparent")
+    //   .attr("rx", 4)
+    //   .style("cursor", "zoom-in")
+    //   .on("mouseenter", function () {
+    //     d3.select(this)
+    //       .transition()
+    //       .duration(120)
+    //       .attr("fill", "rgba(37,99,235,0.09)")
+    //   })
+    //   .on("mouseleave", function () {
+    //     d3.select(this).transition().duration(120).attr("fill", "transparent")
+    //   })
+    //   .on("click", (event, d) => {
+    //     event.stopPropagation()
+    //     zoomToGroup(d.group)
+    //   })
+
+    // ── Seats ────────────────────────────────────────────────────────────────
+    const allSeats = sectionsRef.current.flatMap((s) => s.seats)
+
+    root
+      .append("g")
+      .attr("class", "seat-layer")
+      .selectAll<SVGCircleElement, Seat>("circle.seat")
+      .data(allSeats, (d) => d.id)
+      .join("circle")
+      .attr("class", "seat")
+      .attr("cx", (d) => d.x)
+      .attr("cy", (d) => d.y)
+      .attr("r", SEAT_R)
+      .attr("fill", (d) => (d.available ? COLOR_AVAILABLE : COLOR_SOLD))
+      .style("pointer-events", "none")
+      .style("cursor", (d) => (d.available ? "pointer" : "default"))
+      .on("mouseenter", function (_, d) {
+        if (!d.available) return
+        d3.select(this)
+          .raise()
+          .transition()
+          .duration(60)
+          .attr("r", SEAT_R + 3)
+          .attr("fill", selectedSeats.has(d.id) ? "#1e40af" : COLOR_HOVER)
+        const svgEl = svgRef.current!
+        const svgBox = svgEl.getBoundingClientRect()
+        const pt = svgEl.createSVGPoint()
+        pt.x = d.x
+        pt.y = d.y
+        const rootEl = svgEl.querySelector<SVGGElement>("g.root")!
+        const screen = pt.matrixTransform(rootEl.getScreenCTM()!)
+        setTooltip({
+          x: screen.x - svgBox.left,
+          y: screen.y - svgBox.top,
+          seat: d,
+        })
+      })
+      .on("mouseleave", function (_, d) {
+        d3.select(this)
+          .transition()
+          .duration(60)
+          .attr("r", SEAT_R)
+          .attr("fill", () =>
+            !d.available
+              ? COLOR_SOLD
+              : selectedSeats.has(d.id)
+                ? COLOR_SELECTED
+                : COLOR_AVAILABLE
+          )
+        setTooltip(null)
+      })
+      .on("click", (event, d) => {
+        event.stopPropagation()
+        if (!d.available) return
+        setSelectedSeats((prev) => {
+          const next = new Map(prev)
+          next.has(d.id)
+            ? next.delete(d.id)
+            : next.set(d.id, {
+                id: d.id,
+                section: d.section,
+                row: d.row,
+                col: d.col,
+                price: d.price,
+              })
+          return next
+        })
+      })
+
+    return () => {
+      svg.on(".zoom", null)
+      svg.on("dblclick", null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Repaint seat colours reactively ──────────────────────────────────────
+  // useEffect(() => {
+  //   if (!svgRef.current) return
+  //   d3.select(svgRef.current)
+  //     .selectAll<SVGCircleElement, Seat>("circle.seat")
+  //     .attr("fill", (d) =>
+  //       !d.available
+  //         ? COLOR_SOLD
+  //         : selectedSeats.has(d.id)
+  //           ? COLOR_SELECTED
+  //           : COLOR_AVAILABLE
+  //     )
+  //   // .attr("stroke", (d) => (selectedSeats.has(d.id) ? "#fff" : "none"))
+  //   // .attr("stroke-width", (d) => (selectedSeats.has(d.id) ? 1.5 : 0))
+  // }, [selectedSeats])
+
+  const zoomBy = (factor: number) => {
+    if (!svgRef.current || !zoomRef.current) return
+    d3.select(svgRef.current)
+      .transition()
+      .duration(300)
+      .call(zoomRef.current.scaleBy, factor)
+  }
+
+  // const allSeats = sectionsRef.current.flatMap((s) => s.seats)
+  // const availableSeats = allSeats.filter((s) => s.available)
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex w-full flex-col overflow-hidden select-none"
+    >
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <svg ref={svgRef} className="h-full w-full" />
+      </div>
+    </div>
+  )
+}
+
+{
+  /* <Minimap
+          viewRect={viewRect}
+          sections={sectionsRef.current}
+          selectedSeats={selectedSeats}
+          onClickMinimap={handleMinimapClick}
+        /> */
+}

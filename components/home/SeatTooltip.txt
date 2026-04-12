@@ -1,0 +1,76 @@
+'use client'
+
+import React from 'react'
+import { useBookingStore } from '@/store/bookingStore'
+
+const STATUS_LABEL: Record<string, string> = {
+  available: 'Available',
+  selected: 'Selected ✓',
+  taken: 'Taken',
+  vip: 'VIP',
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  available: '#3b82f6',
+  selected: '#22c55e',
+  taken: '#6b6b7e',
+  vip: '#f59e0b',
+}
+
+const SeatTooltip: React.FC = () => {
+  const { tooltip } = useBookingStore()
+
+  if (!tooltip.visible || !tooltip.seat) return null
+
+  const { seat, x, y } = tooltip
+
+  return (
+    <div
+      className="seat-tooltip animate-fade-in"
+      style={{
+        left: x,
+        top: y,
+        minWidth: 140,
+      }}
+    >
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <span
+          className="text-xs font-bold uppercase tracking-widest"
+          style={{ color: STATUS_COLOR[seat.status], fontFamily: 'var(--font-mono)' }}
+        >
+          {STATUS_LABEL[seat.status]}
+        </span>
+        <span
+          className="text-xs"
+          style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono)' }}
+        >
+          ${seat.price}
+        </span>
+      </div>
+      <div
+        style={{
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          paddingTop: 6,
+          marginTop: 4,
+        }}
+      >
+        <div className="flex gap-3" style={{ color: '#a1a1b5', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+          <span>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>SEC </span>
+            {seat.section}
+          </span>
+          <span>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>ROW </span>
+            {seat.row}
+          </span>
+          <span>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}># </span>
+            {seat.number}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default SeatTooltip

@@ -1,0 +1,110 @@
+"use client"
+
+import * as d3 from "d3"
+import { useEffect, useRef, useState } from "react"
+import { useStadiumLayout } from "./useStadiumLayout"
+import { createSeatPath } from "./createSeatPath"
+import { getSeatColor } from "./utils"
+
+function generateMockData() {
+  const tiers = []
+
+  const tierCount = 4
+  let baseRadius = 80
+
+  for (let t = 0; t < tierCount; t++) {
+    const sections = []
+
+    const sectionCount = 16
+
+    for (let s = 0; s < sectionCount; s++) {
+      const angleStep = (Math.PI * 2) / sectionCount
+
+      sections.push({
+        startAngle: s * angleStep,
+        endAngle: (s + 1) * angleStep,
+        blocks: [
+          { rows: 4, cols: 6 },
+          { rows: 4, cols: 6 },
+          { rows: 4, cols: 6 },
+        ],
+      })
+    }
+
+    tiers.push({
+      radiusInner: baseRadius,
+      radiusOuter: baseRadius + 60,
+      sections,
+    })
+
+    baseRadius += 70
+  }
+
+  return { tiers }
+}
+type Props = {
+  height: number
+  width: number
+}
+export default function Stadium({ height, width }: Props) {
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const data = generateMockData()
+
+  const seats = useStadiumLayout(data)
+
+  useEffect(() => {
+    const svg = d3.select(svgRef.current)
+
+    const g = svg.select("g")
+
+    const zoom = d3
+      .zoom()
+      .scaleExtent([0.5, 5])
+      .on("zoom", (e) => {
+        g.attr("transform", e.transform)
+      })
+
+    svg.call(zoom as any)
+
+    // center view
+    svg.call(
+      zoom.transform as any,
+      d3.zoomIdentity.translate(width / 2, height / 2).scale(0.8)
+    )
+  }, [])
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gray-100">
+      <svg ref={svgRef} width={width} height={height}>
+        <g>
+          {seats.map((seat, i) => {
+            const id = `${seat.tierIndex}-${seat.sectionIndex}-${seat.blockIndex}-${seat.row}-${seat.col}`
+
+            const isSelected = selected.has(id)
+
+            return (
+              <path
+                key={i}
+                d={createSeatPath(seat)}
+                fill={getSeatColor(seat.tierIndex, isSelected)}
+                stroke="white"
+                strokeWidth={0.2}
+                onClick={() => {
+                  setSelected((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(id)) next.delete(id)
+                    else next.add(id)
+                    return next
+                  })
+                }}
+                className="cursor-pointer hover:opacity-80"
+              />
+            )
+          })}
+        </g>
+      </svg>
+    </div>
+  )
+}

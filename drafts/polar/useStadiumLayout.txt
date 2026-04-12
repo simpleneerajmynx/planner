@@ -1,0 +1,61 @@
+// useStadiumLayout.ts
+import { useMemo } from "react"
+
+export function useStadiumLayout(data: any) {
+  return useMemo(() => {
+    const seats: any[] = []
+
+    data.tiers.forEach((tier: any, tierIndex: number) => {
+      const { radiusInner, radiusOuter } = tier
+
+      tier.sections.forEach((section: any, sectionIndex: number) => {
+        const { startAngle, endAngle, blocks } = section
+
+        const sectionAngle = endAngle - startAngle
+
+        blocks.forEach((block: any, blockIndex: number) => {
+          const {
+            rows,
+            cols,
+            radialPadding = 2,
+            angularPadding = 0.002,
+          } = block
+
+          const rowHeight = (radiusOuter - radiusInner) / blocks.length
+
+          const blockInner =
+            radiusInner + blockIndex * rowHeight + radialPadding
+
+          const blockOuter = blockInner + rowHeight - radialPadding * 2
+
+          const colAngle = sectionAngle / cols
+
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              const r0 = blockInner + (r / rows) * (blockOuter - blockInner)
+              const r1 =
+                blockInner + ((r + 1) / rows) * (blockOuter - blockInner)
+
+              const a0 = startAngle + c * colAngle + angularPadding
+              const a1 = startAngle + (c + 1) * colAngle - angularPadding
+
+              seats.push({
+                tierIndex,
+                sectionIndex,
+                blockIndex,
+                row: r,
+                col: c,
+                r0,
+                r1,
+                a0,
+                a1,
+              })
+            }
+          }
+        })
+      })
+    })
+
+    return seats
+  }, [data])
+}

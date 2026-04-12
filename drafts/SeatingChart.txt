@@ -1,0 +1,460 @@
+// import { Card, CardPanel } from "@/components/ui/card"
+// type SeatStatus = "available" | "taken" | "selected"
+
+// interface Seat {
+//   id: string
+//   status: SeatStatus
+// }
+
+// // ─── Dot ──────────────────────────────────────────────────────────
+// const COLOR: Record<SeatStatus, string> = {
+//   available: "#2563eb",
+//   taken: "#d1d5db",
+//   selected: "#16a34a",
+// }
+// const SeatingChart = () => {
+//   return (
+//     <div className="flex flex-1 flex-col items-center justify-center">
+//       <div className="flex max-w-sm gap-4">
+//         <div className="flex gap-4">
+//           <div className="flex">
+//             <Paya />
+//             <Paya />
+//           </div>
+//           <div className="flex">
+//             <Paya />
+//             <Paya />
+//           </div>
+//           <div className="flex">
+//             <Paya />
+//             <Paya />
+//           </div>
+//         </div>
+//         <div className="flex gap-4">
+//           <div className="flex">
+//             <Card className="h-12 rounded-none border">
+//               <CardPanel className="p-2">This</CardPanel>
+//             </Card>
+//             <Card className="h-12 rounded-none border">
+//               <CardPanel className="p-2">This</CardPanel>
+//             </Card>
+//           </div>
+//           <div className="flex">
+//             <Card className="h-12 rounded-none border">
+//               <CardPanel className="p-2">This</CardPanel>
+//             </Card>
+//             <Card className="h-12 rounded-none border">
+//               <CardPanel className="p-2">This</CardPanel>
+//             </Card>
+//             <Card className="h-12 rounded-none border">
+//               <CardPanel className="p-2">This</CardPanel>
+//             </Card>
+//           </div>
+//           <div className="flex">
+//             <Card className="h-12 rounded-none border">
+//               <CardPanel className="p-2">This</CardPanel>
+//             </Card>
+//             <Card className="h-12 rounded-none border">
+//               <CardPanel className="p-2">This</CardPanel>
+//             </Card>
+//           </div>
+//         </div>
+//         <Card className="w-full">Hello</Card>
+//       </div>
+//     </div>
+//   )
+// }
+
+// export default SeatingChart
+
+// function Dot({
+//   seat,
+//   onToggle,
+// }: {
+//   seat: Seat
+//   onToggle?: (id: string) => void
+// }) {
+//   const clickable = seat.status !== "taken"
+//   return (
+//     <span
+//       onClick={() => clickable && onToggle?.(seat.id)}
+//       style={{
+//         display: "inline-block",
+//         width: 7,
+//         height: 7,
+//         borderRadius: "50%",
+//         margin: "1.5px",
+//         background: COLOR[seat.status],
+//         cursor: clickable ? "pointer" : "default",
+//         flexShrink: 0,
+//         transition: "transform 0.1s, background 0.1s",
+//       }}
+//       onMouseEnter={(e) => {
+//         if (clickable)
+//           (e.currentTarget as HTMLElement).style.transform = "scale(1.6)"
+//       }}
+//       onMouseLeave={(e) => {
+//         ;(e.currentTarget as HTMLElement).style.transform = "scale(1)"
+//       }}
+//     />
+//   )
+// }
+
+// // ─── Rectangular Section ──────────────────────────────────────────
+// function RectSection({
+//   seats,
+//   onToggle,
+//   align = "center",
+// }: {
+//   seats: Seat[][]
+//   onToggle: (id: string) => void
+//   align?: "left" | "center" | "right"
+// }) {
+//   const justify =
+//     align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center"
+//   return (
+//     <div style={{ display: "flex", flexDirection: "column" }}>
+//       {seats.map((row, i) => (
+//         <div key={i} style={{ display: "flex", justifyContent: justify }}>
+//           {row.map((s) => (
+//             <Dot key={s.id} seat={s} onToggle={onToggle} />
+//           ))}
+//         </div>
+//       ))}
+//     </div>
+//   )
+// }
+
+// const Paya = () => {
+//   return (
+//     <Card className="h-90 rounded-none border">
+//       <CardPanel className="p-2">
+//         <div
+//           style={{
+//             display: "flex",
+//             flexDirection: "column",
+//             alignItems: "center",
+//           }}
+//         >
+//           {seats.map((row, i) => (
+//             <div key={i} style={{ display: "flex", justifyContent: "center" }}>
+//               {row.map((s) => (
+//                 <Dot key={s.id} seat={s} />
+//               ))}
+//             </div>
+//           ))}
+//         </div>
+//       </CardPanel>
+//     </Card>
+//   )
+// }
+
+import { useState, useCallback } from "react"
+
+// ─── Types ────────────────────────────────────────────────────────
+type SeatStatus = "available" | "taken" | "selected"
+
+interface Seat {
+  id: string
+  status: SeatStatus
+}
+
+// ─── Seat generation ──────────────────────────────────────────────
+function generateRows(
+  sectionId: string,
+  rows: number[],
+  ratio: number
+): Seat[][] {
+  return rows.map((count, r) =>
+    Array.from({ length: count }, (_, s) => ({
+      id: `${sectionId}-${r}-${s}`,
+      status: (Math.random() < ratio ? "available" : "taken") as SeatStatus,
+    }))
+  )
+}
+
+const CREATE_SECTION = (rows: number, cols: number, ratio: number) => {
+  return {
+    rows: Array.from({ length: rows }, () => cols),
+    ratio: ratio,
+  }
+}
+// ─── Section definitions ──────────────────────────────────────────
+const SECTIONS: Record<string, { rows: number[]; ratio: number }> = {
+  // Upper floor side sections
+  s315: CREATE_SECTION(20, 8, 0.55),
+  s216: CREATE_SECTION(20, 8, 0.5),
+  s201: CREATE_SECTION(20, 8, 0.5),
+  s301: CREATE_SECTION(20, 8, 0.55),
+
+  // Upper floor center – 3 columns
+  cL: CREATE_SECTION(20, 8, 0.42),
+  cC: CREATE_SECTION(20, 8, 0.38),
+  cR: CREATE_SECTION(20, 8, 0.42),
+
+  // Lower curved – 7 fan sections (rows taper toward top = closer to stage)
+  bFL: CREATE_SECTION(4, 8, 0.6),
+  bNL: CREATE_SECTION(4, 8, 0.52),
+  bCL: CREATE_SECTION(4, 8, 0.45),
+  bCC: CREATE_SECTION(4, 8, 0.38),
+  bCR: CREATE_SECTION(4, 8, 0.45),
+  bNR: CREATE_SECTION(4, 8, 0.52),
+  bFR: CREATE_SECTION(4, 8, 0.6),
+}
+
+// ─── useSeatMap ───────────────────────────────────────────────────
+type SeatMap = Record<string, Seat[][]>
+
+function useSeatMap() {
+  const [map, setMap] = useState<SeatMap>(() => {
+    const m: SeatMap = {}
+    Object.entries(SECTIONS).forEach(([id, { rows, ratio }]) => {
+      m[id] = generateRows(id, rows, ratio)
+    })
+    return m
+  })
+
+  const toggle = useCallback((id: string) => {
+    setMap((prev) => {
+      const next = { ...prev }
+      for (const sid in next) {
+        next[sid] = next[sid].map((row) =>
+          row.map((seat) =>
+            seat.id !== id
+              ? seat
+              : {
+                  ...seat,
+                  status:
+                    seat.status === "available"
+                      ? "selected"
+                      : seat.status === "selected"
+                        ? "available"
+                        : seat.status,
+                }
+          )
+        )
+      }
+      return next
+    })
+  }, [])
+
+  return { map, toggle }
+}
+
+// ─── Dot ──────────────────────────────────────────────────────────
+const COLOR: Record<SeatStatus, string> = {
+  available: "#2563eb",
+  taken: "#d1d5db",
+  selected: "#16a34a",
+}
+
+function Dot({
+  seat,
+  onToggle,
+}: {
+  seat: Seat
+  onToggle: (id: string) => void
+}) {
+  const clickable = seat.status !== "taken"
+  return (
+    <span
+      onClick={() => clickable && onToggle(seat.id)}
+      style={{
+        display: "inline-block",
+        width: 7,
+        height: 7,
+        borderRadius: "50%",
+        margin: "1.5px",
+        background: COLOR[seat.status],
+        cursor: clickable ? "pointer" : "default",
+        flexShrink: 0,
+        transition: "transform 0.1s, background 0.1s",
+      }}
+      onMouseEnter={(e) => {
+        if (clickable)
+          (e.currentTarget as HTMLElement).style.transform = "scale(1.6)"
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLElement).style.transform = "scale(1)"
+      }}
+    />
+  )
+}
+
+// ─── Rectangular Section ──────────────────────────────────────────
+function RectSection({
+  seats,
+  onToggle,
+  align = "center",
+}: {
+  seats: Seat[][]
+  onToggle: (id: string) => void
+  align?: "left" | "center" | "right"
+}) {
+  const justify =
+    align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center"
+  return (
+    <div className="border">
+      {seats.map((row, i) => (
+        <div key={i} className="flex">
+          {row.map((s) => (
+            <Dot key={s.id} seat={s} onToggle={onToggle} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Fan Section ─────────────────────────────────────────────────
+// Rows are centered; the tapering dot count creates the natural fan shape.
+function FanSection({
+  seats,
+  onToggle,
+}: {
+  seats: Seat[][]
+  onToggle: (id: string) => void
+}) {
+  return (
+    <div
+      style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+    >
+      {seats.map((row, i) => (
+        <div key={i} style={{ display: "flex", justifyContent: "center" }}>
+          {row.map((s) => (
+            <Dot key={s.id} seat={s} onToggle={onToggle} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Side Label ───────────────────────────────────────────────────
+function SideLabel({ label, side }: { label: string; side: "left" | "right" }) {
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        color: "var(--color-text-tertiary)",
+        writingMode: "vertical-rl",
+        transform: side === "left" ? "rotate(180deg)" : "none",
+        alignSelf: "center",
+        letterSpacing: 0.5,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+// ─── Legend ───────────────────────────────────────────────────────
+function Legend({ selected }: { selected: number }) {
+  const items: [string, string][] = [
+    ["#2563eb", "Available"],
+    ["#d1d5db", "Taken"],
+    ["#16a34a", `Selected (${selected})`],
+  ]
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 18,
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: 14,
+        fontSize: 12,
+        color: "var(--color-text-secondary)",
+        flexWrap: "wrap",
+      }}
+    >
+      {items.map(([color, label]) => (
+        <span
+          key={label}
+          style={{ display: "flex", alignItems: "center", gap: 5 }}
+        >
+          <span
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: "50%",
+              background: color,
+              display: "inline-block",
+            }}
+          />
+          {label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────
+export default function SeatingChart() {
+  const { map, toggle } = useSeatMap()
+
+  const selectedCount = Object.values(map)
+    .flat(2)
+    .filter((s) => s.status === "selected").length
+
+  const g = (id: string) => map[id] ?? []
+
+  return (
+    <div className="flex flex-1 flex-col border">
+      {/* Stage */}
+      {/* <div>STAGE</div> */}
+
+      <div className="flex flex-1 flex-col items-center justify-center">
+        {/* Upper floor */}
+        <div className="flex flex-row gap-1">
+          {/* 315 */}
+          <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+            <SideLabel label="315" side="left" />
+            <RectSection seats={g("s315")} onToggle={toggle} align="right" />
+          </div>
+          <div style={{ width: 6 }} />
+          {/* 216 */}
+          <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+            <SideLabel label="216" side="left" />
+            <RectSection seats={g("s216")} onToggle={toggle} align="right" />
+          </div>
+          <div style={{ width: 10 }} />
+          {/* Center 3 columns */}
+          <div style={{ display: "flex", gap: 4 }}>
+            <RectSection seats={g("cL")} onToggle={toggle} />
+            <RectSection seats={g("cC")} onToggle={toggle} />
+            <RectSection seats={g("cR")} onToggle={toggle} />
+          </div>
+          <div style={{ width: 10 }} />
+          {/* 201 */}
+          <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+            <RectSection seats={g("s201")} onToggle={toggle} align="left" />
+            <SideLabel label="201" side="right" />
+          </div>
+          <div style={{ width: 6 }} />
+          {/* 301 */}
+          <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+            <RectSection seats={g("s301")} onToggle={toggle} align="left" />
+            <SideLabel label="301" side="right" />
+          </div>
+        </div>
+
+        {/* Walkway */}
+        <div style={{ height: 14 }} />
+
+        {/* Lower curved fan sections */}
+        <div className="flex flex-row gap-1">
+          <FanSection seats={g("bFL")} onToggle={toggle} />
+          <FanSection seats={g("bNL")} onToggle={toggle} />
+          <FanSection seats={g("bCL")} onToggle={toggle} />
+          <FanSection seats={g("bCC")} onToggle={toggle} />
+          <FanSection seats={g("bCR")} onToggle={toggle} />
+          <FanSection seats={g("bNR")} onToggle={toggle} />
+          <FanSection seats={g("bFR")} onToggle={toggle} />
+        </div>
+      </div>
+
+      {/* <Legend selected={selectedCount} /> */}
+    </div>
+  )
+}
