@@ -1,0 +1,10 @@
+import * as d3 from "d3"
+
+export function createSeatPath(seat: any) {
+  return d3.arc()({
+    innerRadius: seat.r0,
+    outerRadius: seat.r1,
+    startAngle: seat.a0,
+    endAngle: seat.a1,
+  })!
+}

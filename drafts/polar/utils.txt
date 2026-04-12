@@ -1,0 +1,24 @@
+export function polarToCartesian(
+  angle: number,
+  radius: number,
+  centerX: number,
+  centerY: number
+) {
+  return {
+    x: centerX + radius * Math.cos(angle - Math.PI / 2),
+    y: centerY + radius * Math.sin(angle - Math.PI / 2),
+  }
+}
+
+export function getSeatColor(tier: number, selected: boolean) {
+  if (selected) return "#111"
+
+  const colors = [
+    "#ef4444", // red
+    "#f59e0b", // orange
+    "#84cc16", // green
+    "#3b82f6", // blue
+  ]
+
+  return colors[tier % colors.length]
+}

@@ -1,0 +1,51 @@
+
+{
+  /* <SeatmapCanvasComponent
+              data={blocks}
+              options={{
+                legend: true,
+                style: {
+                  seat: {
+                    hover: "#60a5fa",
+                    selected: "#22c55e",
+                    color: "#1d4ed8",
+                    not_salable: "#374151",
+                  },
+                },
+              }}
+              onSeatClick={() => {}}
+            /> */
+}
+{
+  /* {mapDimensions.width > 0 && mapDimensions.height > 0 && (
+              <StadiumMap
+                width={mapDimensions.width}
+                height={mapDimensions.height}
+              />
+            )} */
+}
+
+{
+  /* Canvas area */
+}
+
+{
+  /* <ZoomControls
+              canvasWidth={mapDimensions.width}
+              canvasHeight={mapDimensions.height}
+            /> */
+}
+
+{
+  /* Legend pinned at bottom of map column */
+}
+
+{
+  /* Seat Map */
+}
+{
+  /* <Stadium height={mapDimensions.height} width={mapDimensions.width} /> */
+}
+{
+  /* Legend */
+}

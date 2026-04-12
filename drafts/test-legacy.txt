@@ -1,0 +1,919 @@
+"use client"
+
+import { useEffect, useRef, useState, useCallback } from "react"
+import * as d3 from "d3"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Seat {
+  id: string
+  row: number
+  col: number
+  x: number
+  y: number
+  available: boolean
+  section: string
+  price: number
+}
+
+interface Section {
+  id: string
+  label: string
+  seats: Seat[]
+  minX?: number
+  maxX?: number
+  minY?: number
+  maxY?: number
+}
+
+interface SelectedSeat {
+  id: string
+  section: string
+  row: number
+  col: number
+  price: number
+}
+
+// Viewport rect tracked for minimap
+interface ViewRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const SEAT_R = 5
+const SEAT_GAP = 13
+const W = 960 // SVG viewBox width
+const H = 760 // SVG viewBox height
+const MINIMAP_W = 160
+const MINIMAP_H = 126
+const ZOOM_IN_SCALE = 3.5
+
+const COLOR_AVAILABLE = "#2563eb"
+const COLOR_SOLD = "#d1d5db"
+const COLOR_SELECTED = "#1d4ed8"
+const COLOR_HOVER = "#60a5fa"
+const COLOR_BG = "#f3f4f6"
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const sparseSold = (density: number) => (r: number, c: number) =>
+  (r * 7 + c * 13 + r * c * 3) % 17 < density
+
+function addBounds(sec: Section): Section {
+  const xs = sec.seats.map((s) => s.x)
+  const ys = sec.seats.map((s) => s.y)
+  return {
+    ...sec,
+    minX: Math.min(...xs) - SEAT_R,
+    maxX: Math.max(...xs) + SEAT_R,
+    minY: Math.min(...ys) - SEAT_R,
+    maxY: Math.max(...ys) + SEAT_R,
+  }
+}
+
+function makeGrid(
+  id: string,
+  label: string,
+  ox: number,
+  oy: number,
+  rows: number,
+  cols: number,
+  sold: (r: number, c: number) => boolean,
+  price: number
+): Section {
+  const seats: Seat[] = []
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      seats.push({
+        id: `${id}-${r}-${c}`,
+        row: r,
+        col: c,
+        x: ox + c * SEAT_GAP,
+        y: oy + r * SEAT_GAP,
+        available: !sold(r, c),
+        section: id,
+        price,
+      })
+  return addBounds({ id, label, seats })
+}
+
+// ─── Section groups ───────────────────────────────────────────────────────────
+const SECTION_GROUPS: Record<string, string[]> = {
+  FLOOR: ["FLOOR_L", "FLOOR_C", "FLOOR_R", "FLOOR_L2", "FLOOR_C2", "FLOOR_R2"],
+  SEC_216: ["SEC_216", "SEC_216_L"],
+  SEC_315: ["SEC_315", "SEC_315_L"],
+  SEC_201: ["SEC_201", "SEC_201_L"],
+  SEC_301: ["SEC_301", "SEC_301_L"],
+  REAR_L: ["REAR_L", "REAR_LL"],
+  REAR_C: ["REAR_C"],
+  REAR_R: ["REAR_R", "REAR_RR"],
+}
+
+interface HitZone {
+  group: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+const HIT_ZONES: HitZone[] = [
+  { group: "FLOOR", x: 298, y: 90, w: 340, h: 445 },
+  { group: "SEC_216", x: 178, y: 90, w: 92, h: 445 },
+  { group: "SEC_315", x: 43, y: 90, w: 92, h: 445 },
+  { group: "SEC_201", x: 646, y: 90, w: 92, h: 445 },
+  { group: "SEC_301", x: 781, y: 90, w: 92, h: 445 },
+  { group: "REAR_L", x: 130, y: 530, w: 195, h: 210 },
+  { group: "REAR_C", x: 330, y: 540, w: 290, h: 200 },
+  { group: "REAR_R", x: 628, y: 530, w: 195, h: 210 },
+]
+
+// ─── Build section data ───────────────────────────────────────────────────────
+function buildSections(): Section[] {
+  const s: Section[] = []
+  s.push(makeGrid("FLOOR_L", "", 312, 100, 22, 8, sparseSold(4), 120))
+  s.push(makeGrid("FLOOR_C", "", 427, 100, 22, 9, sparseSold(5), 150))
+  s.push(makeGrid("FLOOR_R", "", 552, 100, 22, 8, sparseSold(4), 120))
+  s.push(makeGrid("FLOOR_L2", "", 312, 400, 12, 8, sparseSold(5), 120))
+  s.push(makeGrid("FLOOR_C2", "", 427, 400, 8, 6, sparseSold(6), 150))
+  s.push(makeGrid("FLOOR_R2", "", 552, 400, 12, 8, sparseSold(5), 120))
+  s.push(makeGrid("SEC_216", "216", 197, 100, 18, 5, sparseSold(6), 90))
+  s.push(makeGrid("SEC_315", "315", 62, 100, 18, 5, sparseSold(5), 75))
+  s.push(makeGrid("SEC_216_L", "216", 197, 403, 10, 5, sparseSold(5), 90))
+  s.push(makeGrid("SEC_315_L", "315", 62, 403, 10, 5, sparseSold(4), 75))
+  s.push(makeGrid("SEC_201", "201", 672, 100, 18, 5, sparseSold(6), 90))
+  s.push(makeGrid("SEC_301", "301", 812, 100, 18, 5, sparseSold(5), 75))
+  s.push(makeGrid("SEC_201_L", "201", 672, 403, 10, 5, sparseSold(5), 90))
+  s.push(makeGrid("SEC_301_L", "301", 812, 403, 10, 5, sparseSold(4), 75))
+  s.push(...buildArcs())
+  return s
+}
+
+function buildArcs(): Section[] {
+  const CX = 480,
+    CY = 480
+  function arc(
+    id: string,
+    n: number,
+    r0: number,
+    a0d: number,
+    a1d: number,
+    price: number,
+    thresh: number,
+    h: (a: number, s: number) => number
+  ): Section {
+    const seats: Seat[] = []
+    for (let a = 0; a < n; a++) {
+      const r = r0 + a * 14
+      const a0 = (a0d * Math.PI) / 180,
+        a1 = (a1d * Math.PI) / 180
+      const ns = Math.max(2, Math.round(((a1 - a0) * r) / SEAT_GAP))
+      for (let s = 0; s < ns; s++) {
+        const ang = a0 + (s / ns) * (a1 - a0)
+        seats.push({
+          id: `${id}-${a}-${s}`,
+          row: a,
+          col: s,
+          x: CX + r * Math.cos(ang),
+          y: CY + r * Math.sin(ang),
+          available: h(a, s) >= thresh,
+          section: id,
+          price,
+        })
+      }
+    }
+    return addBounds({ id, label: "", seats })
+  }
+  return [
+    arc("REAR_LL", 5, 258, 168, 198, 55, 5, (a, s) => (a * 9 + s * 5) % 17),
+    arc("REAR_L", 6, 212, 198, 252, 60, 5, (a, s) => (a * 7 + s * 13) % 17),
+    arc("REAR_C", 7, 187, 253, 287, 70, 7, (a, s) => (a * 11 + s * 7) % 17),
+    arc("REAR_R", 6, 212, 288, 342, 60, 5, (a, s) => (a * 5 + s * 9) % 17),
+    arc("REAR_RR", 5, 258, 342, 372, 55, 5, (a, s) => (a * 3 + s * 11) % 17),
+  ]
+}
+
+// ─── Minimap component ────────────────────────────────────────────────────────
+function Minimap({
+  sections,
+  viewRect,
+  selectedSeats,
+  onClickMinimap,
+}: {
+  sections: Section[]
+  viewRect: ViewRect
+  selectedSeats: Map<string, SelectedSeat>
+  onClickMinimap: (nx: number, ny: number) => void
+}) {
+  const scaleX = MINIMAP_W / W
+  const scaleY = MINIMAP_H / H
+
+  const allSeats = sections.flatMap((s) => s.seats)
+
+  const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mx = (e.clientX - rect.left) / MINIMAP_W // 0–1 normalized
+    const my = (e.clientY - rect.top) / MINIMAP_H
+    onClickMinimap(mx, my)
+  }
+
+  return (
+    <div className="absolute bottom-4 left-4 z-30 overflow-hidden rounded-xl border border-gray-300 bg-white/95 shadow-lg backdrop-blur-sm">
+      <div className="flex items-center justify-between border-b border-gray-200 bg-gray-100 px-2 py-1">
+        <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+          Minimap
+        </span>
+        <span className="text-[10px] text-gray-400">
+          {Math.round(viewRect.w > 0 ? (W / viewRect.w) * 100 : 100)}%
+        </span>
+      </div>
+      <svg
+        width={MINIMAP_W}
+        height={MINIMAP_H}
+        viewBox={`0 0 ${MINIMAP_W} ${MINIMAP_H}`}
+        style={{ background: COLOR_BG, cursor: "crosshair", display: "block" }}
+        onClick={handleClick}
+      >
+        {/* Panel backgrounds */}
+        {[
+          { x: 43, y: 90, w: 92, h: 445 },
+          { x: 178, y: 90, w: 92, h: 445 },
+          { x: 298, y: 90, w: 340, h: 445 },
+          { x: 646, y: 90, w: 92, h: 445 },
+          { x: 781, y: 90, w: 92, h: 445 },
+        ].map((p, i) => (
+          <rect
+            key={i}
+            x={p.x * scaleX}
+            y={p.y * scaleY}
+            width={p.w * scaleX}
+            height={p.h * scaleY}
+            fill="#e5e7eb"
+            rx={1}
+          />
+        ))}
+
+        {/* Stage */}
+        <rect
+          x={(W / 2 - 140) * scaleX}
+          y={22 * scaleY}
+          width={280 * scaleX}
+          height={55 * scaleY}
+          fill="#1f2937"
+          rx={1}
+        />
+
+        {/* Seats — render as 1.2px dots at minimap scale */}
+        {allSeats.map((seat) => (
+          <circle
+            key={seat.id}
+            cx={seat.x * scaleX}
+            cy={seat.y * scaleY}
+            r={1.2}
+            fill={
+              !seat.available
+                ? COLOR_SOLD
+                : selectedSeats.has(seat.id)
+                  ? COLOR_SELECTED
+                  : COLOR_AVAILABLE
+            }
+          />
+        ))}
+
+        {/* Viewport indicator rect */}
+        {viewRect.w > 0 && (
+          <rect
+            x={viewRect.x * scaleX}
+            y={viewRect.y * scaleY}
+            width={viewRect.w * scaleX}
+            height={viewRect.h * scaleY}
+            fill="rgba(37,99,235,0.08)"
+            stroke="#2563eb"
+            strokeWidth={1}
+            rx={1}
+          />
+        )}
+      </svg>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function StadiumSeatSelector() {
+  const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  const currentScaleRef = useRef(1)
+  const sectionsRef = useRef<Section[]>(buildSections())
+
+  const [selectedSeats, setSelectedSeats] = useState<Map<string, SelectedSeat>>(
+    new Map()
+  )
+  const [zoomedGroup, setZoomedGroup] = useState<string | null>(null)
+  const [listView, setListView] = useState(false)
+  const [tooltip, setTooltip] = useState<{
+    x: number
+    y: number
+    seat: Seat
+  } | null>(null)
+  const [hintDone, setHintDone] = useState(false)
+  const [seatsUnlocked, setSeatsUnlocked] = useState(false)
+  // Minimap viewport rect (in SVG viewBox coordinates)
+  const [viewRect, setViewRect] = useState<ViewRect>({ x: 0, y: 0, w: W, h: H })
+
+  const totalPrice = Array.from(selectedSeats.values()).reduce(
+    (s, a) => s + a.price,
+    0
+  )
+
+  // ── Update minimap viewport rect from current D3 transform ────────────────
+  const updateMinimap = useCallback((transform: d3.ZoomTransform) => {
+    const el = svgRef.current
+    if (!el) return
+    const vw = el.clientWidth || W
+    const vh = el.clientHeight || H
+    // Inverse transform: screen corners → SVG coords
+    const x = -transform.x / transform.k
+    const y = -transform.y / transform.k
+    const rw = vw / transform.k
+    const rh = vh / transform.k
+    setViewRect({ x, y, w: rw, h: rh })
+  }, [])
+
+  // ── Pan main map when clicking minimap ────────────────────────────────────
+  const handleMinimapClick = useCallback((nx: number, ny: number) => {
+    if (!svgRef.current || !zoomRef.current) return
+    const el = svgRef.current
+    const vw = el.clientWidth || W
+    const vh = el.clientHeight || H
+    const k = currentScaleRef.current
+    // Convert normalized minimap click → SVG coords → translated transform
+    const tx = vw / 2 - nx * W * k
+    const ty = vh / 2 - ny * H * k
+    d3.select(svgRef.current)
+      .transition()
+      .duration(300)
+      .ease(d3.easeCubicOut)
+      .call(
+        zoomRef.current.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(k)
+      )
+  }, [])
+
+  // ── Zoom to group ─────────────────────────────────────────────────────────
+  const zoomToGroup = useCallback((groupId: string) => {
+    if (!svgRef.current || !zoomRef.current) return
+    const ids = SECTION_GROUPS[groupId] ?? []
+    const group = sectionsRef.current.filter((s) => ids.includes(s.id))
+    if (!group.length) return
+
+    const minX = Math.min(...group.map((s) => s.minX ?? 0)) - 28
+    const maxX = Math.max(...group.map((s) => s.maxX ?? 0)) + 28
+    const minY = Math.min(...group.map((s) => s.minY ?? 0)) - 28
+    const maxY = Math.max(...group.map((s) => s.maxY ?? 0)) + 28
+
+    const el = svgRef.current
+    const vw = el.clientWidth || W
+    const vh = el.clientHeight || H
+    const bw = maxX - minX,
+      bh = maxY - minY
+    const scale = Math.max(ZOOM_IN_SCALE, Math.min(vw / bw, vh / bh) * 0.82)
+    const tx = vw / 2 - scale * (minX + bw / 2)
+    const ty = vh / 2 - scale * (minY + bh / 2)
+
+    setSeatsUnlocked(false)
+
+    d3.select(svgRef.current)
+      .transition()
+      .duration(650)
+      .ease(d3.easeCubicInOut)
+      .call(
+        zoomRef.current.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(scale)
+      )
+      .on("end", () => {
+        d3.select(svgRef.current!)
+          .selectAll<SVGCircleElement, Seat>("circle.seat")
+          .style("pointer-events", "all")
+        d3.select(svgRef.current!)
+          .selectAll<SVGRectElement, HitZone>("rect.hit")
+          .style("pointer-events", "none")
+        setSeatsUnlocked(true)
+      })
+
+    setZoomedGroup(groupId)
+    setHintDone(true)
+  }, [])
+
+  // ── Reset zoom ────────────────────────────────────────────────────────────
+  const resetZoom = useCallback(() => {
+    if (!svgRef.current || !zoomRef.current) return
+    d3.select(svgRef.current)
+      .selectAll<SVGCircleElement, Seat>("circle.seat")
+      .style("pointer-events", "none")
+    d3.select(svgRef.current)
+      .selectAll<SVGRectElement, HitZone>("rect.hit")
+      .style("pointer-events", "all")
+    d3.select(svgRef.current)
+      .transition()
+      .duration(500)
+      .ease(d3.easeCubicInOut)
+      .call(zoomRef.current.transform, d3.zoomIdentity)
+    setZoomedGroup(null)
+    setSeatsUnlocked(false)
+    setTooltip(null)
+  }, [])
+
+  // ── D3 init ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!svgRef.current || listView) return
+
+    const svg = d3.select(svgRef.current)
+    svg.selectAll("*").remove()
+    svg
+      .attr("viewBox", `0 0 ${W} ${H}`)
+      .attr("width", "100%")
+      .attr("height", "100%")
+      .style("background", COLOR_BG)
+      .style("cursor", "grab")
+
+    const root = svg.append("g").attr("class", "root")
+
+    // Zoom
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.5, 14])
+      .on("zoom", (event) => {
+        root.attr("transform", event.transform)
+        currentScaleRef.current = event.transform.k
+        updateMinimap(event.transform)
+      })
+
+    zoomRef.current = zoom
+    svg.call(zoom)
+    svg.on("dblclick.zoom", null)
+    svg.on("dblclick", () => resetZoom())
+
+    // Initial minimap state
+    updateMinimap(d3.zoomIdentity)
+
+    // ── STAGE ───────────────────────────────────────────────────────────────
+    const SW = 280,
+      SH = 55,
+      SX = (W - SW) / 2,
+      SY = 22
+    root
+      .append("rect")
+      .attr("x", SX)
+      .attr("y", SY)
+      .attr("width", SW)
+      .attr("height", SH)
+      .attr("rx", 4)
+      .attr("fill", "#1f2937")
+    root
+      .append("text")
+      .attr("x", SX + SW / 2)
+      .attr("y", SY + SH / 2 + 7)
+      .attr("text-anchor", "middle")
+      .attr("fill", "#fff")
+      .attr("font-size", 20)
+      .attr("font-weight", "bold")
+      .attr("font-family", "system-ui, sans-serif")
+      .attr("letter-spacing", 3)
+      .text("STAGE")
+
+    // ── Panel backgrounds ────────────────────────────────────────────────────
+    ;[
+      { x: 43, y: 90, w: 92, h: 445 },
+      { x: 178, y: 90, w: 92, h: 445 },
+      { x: 298, y: 90, w: 340, h: 445 },
+      { x: 646, y: 90, w: 92, h: 445 },
+      { x: 781, y: 90, w: 92, h: 445 },
+    ].forEach((p) =>
+      root
+        .append("rect")
+        .attr("x", p.x)
+        .attr("y", p.y)
+        .attr("width", p.w)
+        .attr("height", p.h)
+        .attr("fill", "#e5e7eb")
+        .attr("rx", 3)
+    )
+
+    // ── Section labels ───────────────────────────────────────────────────────
+    ;[
+      { t: "315", x: 89, y: 80 },
+      { t: "216", x: 224, y: 80 },
+      { t: "201", x: 692, y: 80 },
+      { t: "301", x: 827, y: 80 },
+    ].forEach(({ t, x, y }) =>
+      root
+        .append("text")
+        .attr("x", x)
+        .attr("y", y)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#6b7280")
+        .attr("font-size", 13)
+        .attr("font-weight", "600")
+        .attr("font-family", "system-ui, sans-serif")
+        .text(t)
+    )
+
+    // ── Hit zones ────────────────────────────────────────────────────────────
+    root
+      .append("g")
+      .attr("class", "hit-layer")
+      .selectAll<SVGRectElement, HitZone>("rect.hit")
+      .data(HIT_ZONES)
+      .join("rect")
+      .attr("class", "hit")
+      .attr("x", (d) => d.x)
+      .attr("y", (d) => d.y)
+      .attr("width", (d) => d.w)
+      .attr("height", (d) => d.h)
+      .attr("fill", "transparent")
+      .attr("rx", 4)
+      .style("cursor", "zoom-in")
+      .on("mouseenter", function () {
+        d3.select(this)
+          .transition()
+          .duration(120)
+          .attr("fill", "rgba(37,99,235,0.09)")
+      })
+      .on("mouseleave", function () {
+        d3.select(this).transition().duration(120).attr("fill", "transparent")
+      })
+      .on("click", (event, d) => {
+        event.stopPropagation()
+        zoomToGroup(d.group)
+      })
+
+    // ── Seats ────────────────────────────────────────────────────────────────
+    const allSeats = sectionsRef.current.flatMap((s) => s.seats)
+
+    root
+      .append("g")
+      .attr("class", "seat-layer")
+      .selectAll<SVGCircleElement, Seat>("circle.seat")
+      .data(allSeats, (d) => d.id)
+      .join("circle")
+      .attr("class", "seat")
+      .attr("cx", (d) => d.x)
+      .attr("cy", (d) => d.y)
+      .attr("r", SEAT_R)
+      .attr("fill", (d) => (d.available ? COLOR_AVAILABLE : COLOR_SOLD))
+      .style("pointer-events", "none")
+      .style("cursor", (d) => (d.available ? "pointer" : "default"))
+      .on("mouseenter", function (_, d) {
+        if (!d.available) return
+        d3.select(this)
+          .raise()
+          .transition()
+          .duration(60)
+          .attr("r", SEAT_R + 3)
+          .attr("fill", selectedSeats.has(d.id) ? "#1e40af" : COLOR_HOVER)
+        const svgEl = svgRef.current!
+        const svgBox = svgEl.getBoundingClientRect()
+        const pt = svgEl.createSVGPoint()
+        pt.x = d.x
+        pt.y = d.y
+        const rootEl = svgEl.querySelector<SVGGElement>("g.root")!
+        const screen = pt.matrixTransform(rootEl.getScreenCTM()!)
+        setTooltip({
+          x: screen.x - svgBox.left,
+          y: screen.y - svgBox.top,
+          seat: d,
+        })
+      })
+      .on("mouseleave", function (_, d) {
+        d3.select(this)
+          .transition()
+          .duration(60)
+          .attr("r", SEAT_R)
+          .attr("fill", () =>
+            !d.available
+              ? COLOR_SOLD
+              : selectedSeats.has(d.id)
+                ? COLOR_SELECTED
+                : COLOR_AVAILABLE
+          )
+        setTooltip(null)
+      })
+      .on("click", (event, d) => {
+        event.stopPropagation()
+        if (!d.available) return
+        setSelectedSeats((prev) => {
+          const next = new Map(prev)
+          next.has(d.id)
+            ? next.delete(d.id)
+            : next.set(d.id, {
+                id: d.id,
+                section: d.section,
+                row: d.row,
+                col: d.col,
+                price: d.price,
+              })
+          return next
+        })
+      })
+
+    return () => {
+      svg.on(".zoom", null)
+      svg.on("dblclick", null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listView])
+
+  // ── Repaint seat colours reactively ──────────────────────────────────────
+  useEffect(() => {
+    if (!svgRef.current || listView) return
+    d3.select(svgRef.current)
+      .selectAll<SVGCircleElement, Seat>("circle.seat")
+      .attr("fill", (d) =>
+        !d.available
+          ? COLOR_SOLD
+          : selectedSeats.has(d.id)
+            ? COLOR_SELECTED
+            : COLOR_AVAILABLE
+      )
+      .attr("stroke", (d) => (selectedSeats.has(d.id) ? "#fff" : "none"))
+      .attr("stroke-width", (d) => (selectedSeats.has(d.id) ? 1.5 : 0))
+  }, [selectedSeats, listView])
+
+  const zoomBy = (factor: number) => {
+    if (!svgRef.current || !zoomRef.current) return
+    d3.select(svgRef.current)
+      .transition()
+      .duration(300)
+      .call(zoomRef.current.scaleBy, factor)
+  }
+
+  const allSeats = sectionsRef.current.flatMap((s) => s.seats)
+  const availableSeats = allSeats.filter((s) => s.available)
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative flex w-full flex-col overflow-hidden bg-gray-100 select-none"
+      style={{
+        height: "100svh",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}
+    >
+      {/* ── Top bar ────────────────────────────────────────────────────────── */}
+      <div className="z-20 flex flex-none items-center justify-between border-b border-gray-200 bg-white px-3 py-2 shadow-sm">
+        {/* Left: switch + back */}
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            onClick={() => setListView((v) => !v)}
+            className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-all hover:bg-gray-200"
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path
+                d="M1 2.5h11M1 6.5h11M1 10.5h11"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span className="hidden sm:inline">
+              {listView ? "Map" : "List"}
+            </span>
+          </button>
+
+          {!listView && zoomedGroup && (
+            <button
+              onClick={resetZoom}
+              className="flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-all hover:bg-blue-100"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M8 10L4 6l4-4"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              All Sections
+            </button>
+          )}
+        </div>
+
+        {/* Center: title + status */}
+        <div className="flex flex-1 justify-center">
+          {!listView && !zoomedGroup && !hintDone && (
+            <span className="hidden text-xs font-medium text-gray-400 sm:block">
+              👆 Click a section to zoom in
+            </span>
+          )}
+          {!listView && zoomedGroup && (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+              {seatsUnlocked ? (
+                <>
+                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                  Tap seats to select
+                </>
+              ) : (
+                <>
+                  <span className="inline-block h-2 w-2 animate-spin rounded-full bg-yellow-400" />
+                  Zooming…
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right: zoom controls */}
+        {!listView && (
+          <div className="flex items-center gap-1">
+            {[
+              { label: "−", fn: () => zoomBy(1 / 1.5) },
+              { label: "⌂", fn: resetZoom },
+              { label: "+", fn: () => zoomBy(1.5) },
+            ].map(({ label, fn }) => (
+              <button
+                key={label}
+                onClick={fn}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-600 transition-all hover:bg-gray-200 sm:h-8 sm:w-8"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Map canvas ─────────────────────────────────────────────────────── */}
+      {!listView && (
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <svg ref={svgRef} className="h-full w-full" />
+
+          {/* Minimap */}
+          <Minimap
+            sections={sectionsRef.current}
+            viewRect={viewRect}
+            selectedSeats={selectedSeats}
+            onClickMinimap={handleMinimapClick}
+          />
+
+          {/* Legend — bottom right */}
+          <div className="absolute right-4 bottom-4 z-30 flex flex-col gap-1.5 rounded-xl border border-gray-200 bg-white/95 p-2.5 shadow-sm backdrop-blur-sm">
+            {[
+              { color: COLOR_AVAILABLE, label: "Available" },
+              { color: COLOR_SELECTED, label: "Selected", ring: true },
+              { color: COLOR_SOLD, label: "Sold Out" },
+            ].map(({ color, label, ring }) => (
+              <div
+                key={label}
+                className="flex items-center gap-2 text-[11px] text-gray-600"
+              >
+                <span
+                  className="inline-block h-3 w-3 shrink-0 rounded-full"
+                  style={{
+                    background: color,
+                    boxShadow: ring
+                      ? `0 0 0 1.5px #fff, 0 0 0 3px ${color}`
+                      : undefined,
+                  }}
+                />
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* Mobile hint overlay */}
+          {/* {!hintDone && !zoomedGroup && (
+            <div className="pointer-events-none absolute top-3 left-1/2 z-20 -translate-x-1/2 sm:hidden">
+              <div className="animate-bounce rounded-full bg-gray-800/90 px-3 py-1.5 text-[11px] font-medium text-white shadow-lg">
+                Tap a section to zoom in
+              </div>
+            </div>
+          )} */}
+
+          {/* Tooltip */}
+          {tooltip && (
+            <div
+              className="pointer-events-none absolute z-40 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-xl"
+              style={{ left: tooltip.x + 14, top: Math.max(8, tooltip.y - 64) }}
+            >
+              <div className="font-semibold text-gray-800">
+                {tooltip.seat.section.replace(/_/g, " ")}
+              </div>
+              <div className="mt-0.5 text-gray-400">
+                Row {tooltip.seat.row + 1} · Seat {tooltip.seat.col + 1}
+              </div>
+              <div className="mt-1 font-bold text-blue-600">
+                ${tooltip.seat.price}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── List view ──────────────────────────────────────────────────────── */}
+      {listView && (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-24">
+          <p className="mb-3 text-sm font-semibold text-gray-700">
+            Available Seats{" "}
+            <span className="font-normal text-gray-400">
+              ({availableSeats.length})
+            </span>
+          </p>
+          <div className="xs:grid-cols-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {availableSeats.map((seat) => {
+              const isSelected = selectedSeats.has(seat.id)
+              return (
+                <button
+                  key={seat.id}
+                  onClick={() =>
+                    setSelectedSeats((prev) => {
+                      const next = new Map(prev)
+                      next.has(seat.id)
+                        ? next.delete(seat.id)
+                        : next.set(seat.id, {
+                            id: seat.id,
+                            section: seat.section,
+                            row: seat.row,
+                            col: seat.col,
+                            price: seat.price,
+                          })
+                      return next
+                    })
+                  }
+                  className={`flex items-center justify-between rounded-xl border p-2.5 text-left transition-all ${
+                    isSelected
+                      ? "border-blue-600 bg-blue-600 text-white shadow-md"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-blue-400 hover:shadow-sm"
+                  }`}
+                >
+                  <div>
+                    <div className="text-xs font-semibold">
+                      {seat.section.replace(/_/g, " ")}
+                    </div>
+                    <div
+                      className={`mt-0.5 text-[10px] ${isSelected ? "text-blue-100" : "text-gray-400"}`}
+                    >
+                      R{seat.row + 1} · S{seat.col + 1}
+                    </div>
+                  </div>
+                  <div
+                    className={`text-xs font-bold ${isSelected ? "text-white" : "text-blue-600"}`}
+                  >
+                    ${seat.price}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Booking bar ────────────────────────────────────────────────────── */}
+      <div
+        className={`z-20 flex-none overflow-hidden border-t border-gray-200 bg-white shadow-2xl transition-all duration-300 ${selectedSeats.size > 0 ? "max-h-28 py-3" : "max-h-0 py-0"}`}
+      >
+        <div className="flex items-center justify-between gap-3 px-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-gray-800">
+              {selectedSeats.size} seat{selectedSeats.size !== 1 ? "s" : ""}{" "}
+              selected
+            </div>
+            <div className="mt-0.5 truncate text-[11px] text-gray-400">
+              {Array.from(selectedSeats.values())
+                .map((s) => s.section.replace(/_/g, " "))
+                .slice(0, 2)
+                .join(", ")}
+              {selectedSeats.size > 2 ? ` +${selectedSeats.size - 2} more` : ""}
+            </div>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <div className="text-right">
+              <div className="text-[10px] text-gray-400">Total</div>
+              <div className="text-sm font-bold text-gray-800">
+                ${totalPrice}
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                alert(
+                  `Booking ${selectedSeats.size} seat(s) for $${totalPrice}`
+                )
+              }
+              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 active:bg-blue-800"
+            >
+              Book Now
+            </button>
+            <button
+              onClick={() => setSelectedSeats(new Map())}
+              className="text-[11px] text-gray-400 underline hover:text-gray-600"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,203 @@
+"use client"
+
+import React, { useEffect, useRef, useCallback } from "react"
+import { Layer } from "react-konva"
+import Konva from "konva"
+import { useTheme } from "next-themes"
+import { useBookingStore } from "@/store/bookingStore"
+import { Seat } from "@/types/seat"
+
+// ─── constants ────────────────────────────────────────────────────────────────
+const SEAT_R = 4
+const ZOOM_PAD = 60
+const MAX_ZOOM_SCALE = 4.5
+
+// ─── Theme-aware colour palette ───────────────────────────────────────────────
+function buildPalette(isDark: boolean) {
+  return {
+    taken: isDark ? "#52525b" : "#d4d4d8",
+    selected: isDark ? "#818cf8" : "#4f46e5",
+    vip: isDark ? "#fbbf24" : "#d97706",
+    floor: isDark ? "#4ade80" : "#16a34a",
+    lower: isDark ? "#60a5fa" : "#2563eb",
+    upper: isDark ? "#a78bfa" : "#7c3aed",
+    balcony: isDark ? "#f472b6" : "#db2777",
+  }
+}
+
+function seatFill(
+  seat: Seat,
+  palette: ReturnType<typeof buildPalette>
+): string {
+  if (seat.status === "taken") return palette.taken
+  if (seat.status === "selected") return palette.selected
+  if (seat.status === "vip") return palette.vip
+  // category colours for available seats
+  switch (seat.category) {
+    case "floor":
+      return palette.floor
+    case "lower":
+      return palette.lower
+    case "upper":
+      return palette.upper
+    case "balcony":
+      return palette.balcony
+    default:
+      return palette.lower
+  }
+}
+
+function seatOpacity(seat: Seat): number {
+  return seat.status === "taken" ? 0.38 : 1
+}
+
+// ─── component ───────────────────────────────────────────────────────────────
+interface SeatsCanvasProps {
+  stageRef: React.RefObject<Konva.Stage>
+}
+
+const SeatsCanvas: React.FC<SeatsCanvasProps> = ({ stageRef }) => {
+  const layerRef = useRef<Konva.Layer>(null)
+  // stable map from seatId → Konva.Circle so we never recreate all circles
+  const circlesRef = useRef<Map<string, Konva.Circle>>(new Map())
+
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+
+  // ── store slices (granular subscriptions to avoid full re-render) ──────────
+  const seats = useBookingStore((s) => s.seats)
+  const isZoomedIn = useBookingStore((s) => s.isZoomedIn)
+  const toggleSeat = useBookingStore((s) => s.toggleSeat)
+  const setStageTransform = useBookingStore((s) => s.setStageTransform)
+  const setTooltip = useBookingStore((s) => s.setTooltip)
+
+  // ── Zoom to the bounding box of a whole section ────────────────────────────
+  // This is better than zoomToSeat (single dot centre) because it fits the
+  // entire section so every seat in that group is comfortably selectable.
+  const zoomToSection = useCallback(
+    (clickedSeat: Seat) => {
+      const stage = stageRef.current
+      if (!stage) return
+
+      const sectionSeats = seats.filter(
+        (s) => s.section === clickedSeat.section
+      )
+      if (sectionSeats.length === 0) return
+
+      const xs = sectionSeats.map((s) => s.x)
+      const ys = sectionSeats.map((s) => s.y)
+      const minX = Math.min(...xs) - ZOOM_PAD
+      const maxX = Math.max(...xs) + SEAT_R + ZOOM_PAD
+      const minY = Math.min(...ys) - ZOOM_PAD
+      const maxY = Math.max(...ys) + SEAT_R + ZOOM_PAD
+
+      const sectionW = maxX - minX
+      const sectionH = maxY - minY
+      const canvasW = stage.width()
+      const canvasH = stage.height()
+
+      // Fit section into viewport, never exceed MAX_ZOOM_SCALE
+      const fitScale = Math.min(
+        canvasW / sectionW,
+        canvasH / sectionH,
+        MAX_ZOOM_SCALE
+      )
+
+      const newPos = {
+        x: canvasW / 2 - (minX + sectionW / 2) * fitScale,
+        y: canvasH / 2 - (minY + sectionH / 2) * fitScale,
+      }
+
+      // Call the store's zoomToSeat just to flip isZoomedIn + set zoomTargetSeat
+      // (StadiumMap reads those for the hint text & reset button),
+      // then immediately correct the transform to our section-fit values.
+      useBookingStore.getState().zoomToSeat(clickedSeat, canvasW, canvasH)
+      setStageTransform(fitScale, newPos)
+    },
+    [seats, stageRef, setStageTransform]
+  )
+
+  // ── Build circles once when seats are first loaded ────────────────────────
+  useEffect(() => {
+    const layer = layerRef.current
+    if (!layer || seats.length === 0) return
+    // Guard: only build once
+    if (circlesRef.current.size > 0) return
+
+    const palette = buildPalette(isDark)
+
+    seats.forEach((seat) => {
+      const circle = new Konva.Circle({
+        x: seat.x,
+        y: seat.y,
+        radius: SEAT_R,
+        fill: seatFill(seat, palette),
+        opacity: seatOpacity(seat),
+        id: seat.id,
+        // Wider hit area so tiny dots are easy to tap on mobile
+        hitStrokeWidth: 5,
+      })
+
+      // ── Hover / tooltip ──────────────────────────────────────────────────
+      circle.on("mouseenter", () => {
+        if (seat.status === "taken") return
+        const stage = stageRef.current
+        if (stage) stage.container().style.cursor = "pointer"
+        const pos = stage?.getPointerPosition()
+        if (pos) setTooltip({ visible: true, x: pos.x, y: pos.y, seat })
+      })
+
+      circle.on("mousemove", () => {
+        const stage = stageRef.current
+        const pos = stage?.getPointerPosition()
+        if (pos && seat.status !== "taken") {
+          setTooltip({ visible: true, x: pos.x, y: pos.y, seat })
+        }
+      })
+
+      circle.on("mouseleave", () => {
+        const stage = stageRef.current
+        if (stage) stage.container().style.cursor = "default"
+        setTooltip({ visible: false, x: 0, y: 0, seat: null })
+      })
+
+      // ── Click: zoom-in first, then allow selection ───────────────────────
+      circle.on("click tap", (e) => {
+        // Prevent drag-end from also firing a click
+        e.cancelBubble = true
+        if (seat.status === "taken") return
+
+        // Read live store state (not stale closure)
+        const zoomed = useBookingStore.getState().isZoomedIn
+        if (!zoomed) {
+          zoomToSection(seat)
+        } else {
+          toggleSeat(seat.id)
+        }
+      })
+
+      layer.add(circle)
+      circlesRef.current.set(seat.id, circle)
+    })
+
+    layer.batchDraw()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seats])
+
+  // ── Re-colour when seat statuses change (toggleSeat) or theme flips ───────
+  useEffect(() => {
+    if (circlesRef.current.size === 0) return
+    const palette = buildPalette(isDark)
+    seats.forEach((seat) => {
+      const circle = circlesRef.current.get(seat.id)
+      if (!circle) return
+      circle.fill(seatFill(seat, palette))
+      circle.opacity(seatOpacity(seat))
+    })
+    layerRef.current?.batchDraw()
+  }, [seats, isDark])
+
+  return <Layer ref={layerRef} />
+}
+
+export default SeatsCanvas

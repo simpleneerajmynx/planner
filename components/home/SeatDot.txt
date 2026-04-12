@@ -1,0 +1,130 @@
+"use client"
+
+import React, { useCallback, useState } from "react"
+import { Circle } from "react-konva"
+import { Seat, SEAT_COLORS } from "@/types/seat"
+import { useBookingStore } from "@/store/bookingStore"
+import Konva from "konva"
+
+interface SeatDotProps {
+  seat: Seat
+}
+
+function getSeatFill(status: Seat["status"], isHovered: boolean): string {
+  if (isHovered && status !== "taken") return SEAT_COLORS.hover
+  switch (status) {
+    case "available":
+      return SEAT_COLORS.available
+    case "selected":
+      return SEAT_COLORS.selected
+    case "taken":
+      return SEAT_COLORS.taken
+    case "vip":
+      return SEAT_COLORS.vip
+    default:
+      return SEAT_COLORS.available
+  }
+}
+
+// World-space radii — constant relative to seat spacing so no overlap at any zoom
+const WORLD_R = 4
+const WORLD_R_SEL = 4.5
+const WORLD_R_HOV = 4.8
+
+function getSeatRadius(status: Seat["status"], isHovered: boolean): number {
+  if (isHovered && status !== "taken") return WORLD_R_HOV
+  if (status === "selected") return WORLD_R_SEL
+  return WORLD_R
+}
+
+const SeatDot: React.FC<SeatDotProps> = ({ seat }) => {
+  const [isHovered, setIsHovered] = useState(false)
+  const { toggleSeat, setTooltip, zoomToSeat, isZoomedIn, resetZoom } =
+    useBookingStore()
+
+  const canInteract = seat.status !== "taken"
+
+  const handleMouseEnter = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (!canInteract) return
+      setIsHovered(true)
+      const stage = e.target.getStage()
+      if (!stage) return
+      const pointerPos = stage.getPointerPosition()
+      if (!pointerPos) return
+      const containerRect = (
+        stage.container() as HTMLElement
+      ).getBoundingClientRect()
+      setTooltip({
+        visible: true,
+        x: containerRect.left + pointerPos.x + 12,
+        y: containerRect.top + pointerPos.y - 10,
+        seat,
+      })
+      const container = stage.container() as HTMLElement
+      container.style.cursor = "pointer"
+    },
+    [canInteract, seat, setTooltip]
+  )
+
+  const handleMouseLeave = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      setIsHovered(false)
+      setTooltip({ visible: false, x: 0, y: 0, seat: null })
+      const stage = e.target.getStage()
+      if (stage) {
+        const container = stage.container() as HTMLElement
+        container.style.cursor = "grab"
+      }
+    },
+    [setTooltip]
+  )
+
+  const handleClick = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (!canInteract) return
+      e.cancelBubble = true
+
+      const stage = e.target.getStage()
+      if (!stage) return
+      const canvasWidth = stage.width()
+      const canvasHeight = stage.height()
+
+      if (!isZoomedIn) {
+        // Zoom in to seat on first click
+        zoomToSeat(seat, canvasWidth, canvasHeight)
+      } else {
+        // Already zoomed — toggle selection
+        toggleSeat(seat.id)
+      }
+    },
+    [canInteract, isZoomedIn, zoomToSeat, toggleSeat, seat]
+  )
+
+  const fill = getSeatFill(seat.status, isHovered)
+  const radius = getSeatRadius(seat.status, isHovered)
+  const opacity = seat.status === "taken" ? 0.25 : 1
+
+  return (
+    <Circle
+      x={seat.x}
+      y={seat.y}
+      radius={radius}
+      fill={fill}
+      opacity={opacity}
+      stroke={seat.status === "selected" ? "#4ade80" : "transparent"}
+      strokeWidth={seat.status === "selected" ? 1.5 : 0}
+      shadowBlur={seat.status === "selected" ? 8 : isHovered ? 6 : 0}
+      shadowColor={seat.status === "selected" ? "#22c55e" : "#60a5fa"}
+      shadowOpacity={seat.status === "selected" ? 0.8 : 0.6}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
+      onTap={handleClick}
+      listening={true}
+      perfectDrawEnabled={false}
+    />
+  )
+}
+
+export default React.memo(SeatDot)
