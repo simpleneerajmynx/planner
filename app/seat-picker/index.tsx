@@ -188,7 +188,6 @@ export default function StadiumSeatSelector({
       .attr("viewBox", `0 0 ${W} ${H}`)
       .attr("width", "100%")
       .attr("height", "100%")
-      .style("background", ACTIVE_THEME.background)
       .style("cursor", "grab")
 
     const root = svg.append("g").attr("class", "root")
@@ -237,6 +236,7 @@ export default function StadiumSeatSelector({
       }
 
       g.append("rect")
+        .attr("class", "block-bg")
         .attr("x", b.x)
         .attr("y", b.y)
         .attr("width", b.w)
@@ -465,6 +465,19 @@ export default function StadiumSeatSelector({
         style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
       />
 
+      <style>{`
+        .dark .block-bg {
+          fill: #27272a !important; /* zinc-800 */
+          stroke: #3f3f46 !important; /* zinc-700 */
+        }
+        .dark .hit:hover {
+          fill: rgba(255,255,255,0.06) !important;
+        }
+        .dark .seat-layer circle.seat[fill="#dededf"] {
+          fill: #3f3f46 !important; /* Make sold seats dark compatible */
+        }
+      `}</style>
+
       <AnimatePresence>
         {blockTooltip && !zoomedGroup && (
           <motion.div
@@ -476,22 +489,22 @@ export default function StadiumSeatSelector({
             className="pointer-events-none absolute z-50 -translate-x-1/2 -translate-y-[calc(100%+16px)] transform drop-shadow-xl transition-all duration-75 ease-out"
             style={{ left: blockTooltip.x, top: blockTooltip.y }}
           >
-            <div className="flex flex-col items-center justify-center rounded-xl bg-white px-5 py-3 shadow-lg ring-1 ring-black/5">
-              <span className="mb-0.5 text-[10px] font-bold tracking-widest text-[#a1a1aa]">
+            <div className="flex flex-col items-center justify-center rounded-xl bg-white px-5 py-3 shadow-lg ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10">
+              <span className="mb-0.5 text-[10px] font-bold tracking-widest text-[#a1a1aa] dark:text-zinc-400">
                 SECTION
               </span>
-              <span className="text-[20px] leading-none font-black text-[#18181b]">
+              <span className="text-[20px] leading-none font-black text-[#18181b] dark:text-white">
                 {blockTooltip.group}
               </span>
               {selectedSeatsInHoveredBlock > 0 ? (
-                <div className="mt-2.5 flex items-center gap-1.5 rounded-md bg-green-50 px-2.5 py-1 text-green-700 ring-1 ring-green-600/20">
+                <div className="mt-2.5 flex items-center gap-1.5 rounded-md bg-green-50 px-2.5 py-1 text-green-700 ring-1 ring-green-600/20 dark:bg-green-500/10 dark:text-green-400 dark:ring-green-500/20">
                   <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500 shadow-sm" />
                   <span className="text-[11px] font-bold tracking-wide">
                     {selectedSeatsInHoveredBlock} SELECTED
                   </span>
                 </div>
               ) : (
-                <span className="mt-2 text-[10px] font-semibold text-[#3b82f6]">
+                <span className="mt-2 text-[10px] font-semibold text-[#3b82f6] dark:text-blue-400">
                   Click to explore
                 </span>
               )}
@@ -521,7 +534,7 @@ export default function StadiumSeatSelector({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             onClick={resetZoom}
-            className="absolute top-6 left-6 flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[14px] font-bold text-[#18181b] shadow-xl ring-1 ring-black/5 hover:bg-gray-50 focus:outline-none"
+            className="absolute top-6 left-6 flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[14px] font-bold text-[#18181b] shadow-xl ring-1 ring-black/5 transition hover:bg-gray-50 focus:outline-none dark:bg-zinc-900 dark:text-white dark:ring-white/10 dark:hover:bg-zinc-800"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Stadium
@@ -532,19 +545,19 @@ export default function StadiumSeatSelector({
       <div className="absolute right-6 bottom-6 flex flex-col gap-2">
         <button
           onClick={() => zoomBy(1.5)}
-          className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50 focus:outline-none"
+          className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50 focus:outline-none dark:bg-zinc-900 dark:text-zinc-300 dark:ring-white/10 dark:hover:bg-zinc-800"
         >
           <ZoomIn className="h-5 w-5" />
         </button>
         <button
           onClick={() => zoomBy(0.667)}
-          className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50 focus:outline-none"
+          className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50 focus:outline-none dark:bg-zinc-900 dark:text-zinc-300 dark:ring-white/10 dark:hover:bg-zinc-800"
         >
           <ZoomOut className="h-5 w-5" />
         </button>
         <button
           onClick={resetZoom}
-          className="mt-2 flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50 focus:outline-none"
+          className="mt-2 flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-white text-gray-700 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50 focus:outline-none dark:bg-zinc-900 dark:text-zinc-300 dark:ring-white/10 dark:hover:bg-zinc-800"
           title="Reset View"
         >
           <Maximize className="h-5 w-5" />

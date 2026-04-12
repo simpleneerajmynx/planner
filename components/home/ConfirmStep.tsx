@@ -74,19 +74,15 @@ const ConfirmStep: React.FC = () => {
   }
 
   return (
-    <div
-      className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-12"
-      style={{ background: "var(--bg-primary)" }}
-    >
+    <div className="relative flex min-h-0 flex-1 items-center justify-center p-4 sm:p-8">
       {/* Confetti canvas */}
       <canvas
         ref={canvasRef}
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 h-full w-full"
         style={{ zIndex: 0 }}
       />
-
       <div
-        className="animate-slide-up relative w-full max-w-lg overflow-hidden rounded-2xl text-center"
+        className="animate-slide-up relative flex flex-col max-h-full overflow-y-auto w-full max-w-lg rounded-2xl text-center shadow-[0_0_80px_rgba(34,197,94,0.1)] drop-shadow-2xl"
         style={{
           background: "var(--bg-card)",
           border: "1px solid rgba(34,197,94,0.2)",
