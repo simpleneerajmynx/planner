@@ -217,7 +217,7 @@ export const RECTANGULAR_CONFIG: StadiumConfig = {
 }
 
 // Change this to rapidly switch between the 3 stadium layouts!
-export const ACTIVE_CONFIG = CAPSULE_CONFIG
+export const ACTIVE_CONFIG = COLOSSEUM_CONFIG
 
 export const ACTIVE_THEME: StadiumTheme = {
   ...DEFAULT_THEME,

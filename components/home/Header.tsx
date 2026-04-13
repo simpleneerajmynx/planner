@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
 import { siteConfig } from "@/config/site"
+import StadiumOptions from "@/app/seat-picker/options"
 
 const Header: React.FC = () => {
   const { selectedSeats, step, setStep, clearSelection, resetZoom } =
@@ -82,7 +83,10 @@ const Header: React.FC = () => {
           {siteConfig.event.date} | {siteConfig.event.time}
         </span>
       </div>
-      {renderButton}
+      <div className="flex items-center gap-2">
+        {step === BookingStep.MAP && <StadiumOptions />}
+        {renderButton}
+      </div>
     </header>
   )
 }

@@ -2,6 +2,7 @@ import { Inter, Outfit } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { JotaiProvider } from "@/components/jotai-provider"
 import { cn } from "@/lib/utils"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -23,7 +24,9 @@ export default function RootLayout({
       className={cn("antialiased", inter.variable, outfit.variable, "font-sans")}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <JotaiProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </JotaiProvider>
       </body>
     </html>
   )

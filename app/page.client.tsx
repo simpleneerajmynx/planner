@@ -1,7 +1,7 @@
 "use client"
 
 import Header from "@/components/home/Header"
-import React, { useEffect, useRef } from "react"
+import React, { useEffect, useMemo, useRef } from "react"
 import StadiumSeatSelector from "./seat-picker"
 import MapLegend from "@/components/home/MapLegend"
 import ReviewStep from "@/components/home/ReviewStep"
@@ -9,27 +9,122 @@ import ConfirmStep from "@/components/home/ConfirmStep"
 import { buildSections } from "./seat-picker/create-data"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
 import { AnimatePresence, motion } from "motion/react"
+import { useHotkeys } from "react-hotkeys-hook"
+import { AppShortcuts } from "@/types/shortcuts"
+import { useAtomValue } from "jotai"
+import {
+  layoutTypeAtom,
+  capsuleTierColorsAtom,
+  colosseumTierColorsAtom,
+  rectangularTierColorsAtom,
+} from "./seat-picker/store"
+import {
+  CAPSULE_CONFIG,
+  COLOSSEUM_CONFIG,
+  RECTANGULAR_CONFIG,
+  StadiumConfig,
+} from "./seat-picker/config"
 
-const sections = buildSections()
+// Build a config with overridden tier colors
+function buildConfigWithColors(
+  layout: string,
+  capsuleColors: Record<string, string>,
+  colosseumColors: Record<string, string>,
+  rectColors: Record<string, string>
+): StadiumConfig {
+  if (layout === "capsule") {
+    return {
+      ...CAPSULE_CONFIG,
+      tiers: CAPSULE_CONFIG.tiers.map((t) => ({
+        ...t,
+        color: capsuleColors[t.id] ?? t.color,
+      })),
+    }
+  }
+  if (layout === "rectangular") {
+    return {
+      ...RECTANGULAR_CONFIG,
+      tiers: RECTANGULAR_CONFIG.tiers.map((t) => ({
+        ...t,
+        color: rectColors[t.id] ?? t.color,
+      })),
+    }
+  }
+  // colosseum (default)
+  return {
+    ...COLOSSEUM_CONFIG,
+    tiers: COLOSSEUM_CONFIG.tiers.map((t) => ({
+      ...t,
+      color: colosseumColors[t.id] ?? t.color,
+    })),
+  }
+}
 
 const BookingPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const { setSeats, step, selectedSeats, toggleSeat } = useBookingStore()
+  const { setSeats, step, selectedSeats, toggleSeat, setStep, clearSelection } =
+    useBookingStore()
 
-  // Init seat data into global store
+  // ── Read Jotai atoms ──────────────────────────────────────────────────────
+  const layout = useAtomValue(layoutTypeAtom)
+  const capsuleColors = useAtomValue(capsuleTierColorsAtom)
+  const colosseumColors = useAtomValue(colosseumTierColorsAtom)
+  const rectColors = useAtomValue(rectangularTierColorsAtom)
+
+  // ── Derive the active stadium config ─────────────────────────────────────
+  const activeConfig = useMemo(
+    () =>
+      buildConfigWithColors(layout, capsuleColors, colosseumColors, rectColors),
+    [layout, capsuleColors, colosseumColors, rectColors]
+  )
+
+  // ── Build sections from config (re-runs when config changes) ─────────────
+  const sections = useMemo(() => {
+    // Clear selection when layout changes to avoid stale seat IDs
+    clearSelection()
+    return buildSections(activeConfig)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConfig])
+
+  // Sync seats into global store whenever sections rebuild
   useEffect(() => {
     const allSeats = sections.flatMap((s) => s.seats)
-
     setSeats(allSeats)
-  }, [setSeats])
+  }, [sections, setSeats])
+
+  useHotkeys(
+    AppShortcuts.ESCAPE,
+    () => {
+      if (step === BookingStep.REVIEW) {
+        setStep(BookingStep.MAP)
+      } else if (step === BookingStep.CONFIRM) {
+        setStep(BookingStep.REVIEW)
+      }
+    },
+    { enableOnFormTags: false },
+    [step, setStep]
+  )
+
+  useHotkeys(
+    AppShortcuts.PROCEED,
+    () => {
+      if (step === BookingStep.MAP && selectedSeats.length > 0) {
+        setStep(BookingStep.REVIEW)
+      } else if (step === BookingStep.REVIEW) {
+        setStep(BookingStep.CONFIRM)
+      }
+    },
+    { enableOnFormTags: false },
+    [step, selectedSeats.length, setStep]
+  )
 
   const content = React.useMemo(() => {
     switch (step) {
       case BookingStep.MAP:
         return (
           <motion.div
-            key="map"
+            key={`map-${layout}`}
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15, filter: "blur(4px)" }}
@@ -41,6 +136,7 @@ const BookingPage: React.FC = () => {
               className="flex min-w-0 flex-1 flex-col overflow-hidden"
             >
               <StadiumSeatSelector
+                key={layout}
                 sections={sections}
                 toggleSeat={toggleSeat}
                 selectedSeats={selectedSeats}
@@ -76,7 +172,7 @@ const BookingPage: React.FC = () => {
           </motion.div>
         )
     }
-  }, [step, selectedSeats, toggleSeat])
+  }, [step, selectedSeats, toggleSeat, sections, layout])
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-[#faf9f6] dark:bg-zinc-950">
@@ -89,9 +185,7 @@ const BookingPage: React.FC = () => {
 
       <div className="relative z-10 flex h-full min-h-0 flex-col">
         <Header />
-        <AnimatePresence mode="wait">
-          {content}
-        </AnimatePresence>
+        <AnimatePresence mode="wait">{content}</AnimatePresence>
       </div>
     </div>
   )
