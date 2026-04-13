@@ -34,7 +34,7 @@ const ReviewStep: React.FC = () => {
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-8">
-      <Card className="animate-slide-up flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl shadow-2xl drop-shadow-md">
+      <Card className="animate-slide-up flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl shadow-2xl drop-shadow-md">
         {/* Header */}
         <div
           className="shrink-0 px-8 py-6"
