@@ -232,6 +232,9 @@ export default function StadiumSeatSelector({
     let transform = getInitialTransform()
     const allSeats = sectionsRef.current.flatMap((s) => s.seats)
 
+    // seatById — built once, shared by both pointermove and selected-count badge
+    const seatById = new Map(allSeats?.map((s) => [s?.id, s]))
+
     // sectionAvailableCount is still computed once, but colors read from ref dynamically
     const sectionAvailableCount: Record<string, number> = {}
     sectionsRef.current.forEach((s) => {
@@ -692,8 +695,6 @@ export default function StadiumSeatSelector({
     canvasSel.on("dblclick", () => resetZoom())
 
     // ── Interaction ─────────────────────────────────────────────────────────
-    // seatById — built once, shared by both pointermove and selected-count badge
-    const seatById = new Map(allSeats?.map((s) => [s?.id, s]))
 
     const quadtree = d3
       .quadtree<GlobalSeat>()

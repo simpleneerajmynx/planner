@@ -4,14 +4,15 @@ import React from "react"
 import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import {
-  GamepadDirectional,
-  ListCheck,
   PencilIcon,
   PlusCircle,
+  TicketCheck,
+  GamepadDirectional,
 } from "lucide-react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
 import { siteConfig } from "@/config/site"
 import StadiumOptions from "@/app/seat-picker/options"
+import DarkMode from "./darkmode"
 
 const Header: React.FC = () => {
   const { selectedSeats, step, setStep, clearSelection, resetZoom } =
@@ -32,7 +33,7 @@ const Header: React.FC = () => {
             disabled={selectedSeats.length === 0}
             className="flex items-center gap-2"
           >
-            <ListCheck />
+            <TicketCheck />
             Review Selection
             {selectedSeats.length > 0 && (
               <Badge
@@ -84,8 +85,9 @@ const Header: React.FC = () => {
         </span>
       </div>
       <div className="flex items-center gap-2">
-        {step === BookingStep.MAP && <StadiumOptions />}
         {renderButton}
+        {step === BookingStep.MAP && <StadiumOptions />}
+        <DarkMode />
       </div>
     </header>
   )

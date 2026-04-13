@@ -40,29 +40,6 @@ const ReviewStep: React.FC = () => {
           className="shrink-0 px-8 py-6"
           style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
-          <button
-            onClick={() => setStep(BookingStep.MAP)}
-            className="mb-4 flex items-center gap-2 text-sm transition-opacity hover:opacity-70"
-            style={{
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-mono)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M19 12H5M12 5l-7 7 7 7" />
-            </svg>
-            Back to map
-          </button>
           <h2
             style={{
               fontFamily: "var(--font-display)",
