@@ -35,4 +35,5 @@ export interface HitZone {
   rotate?: number
   cx?: number
   cy?: number
+  path?: string
 }

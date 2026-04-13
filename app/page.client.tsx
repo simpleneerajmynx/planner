@@ -49,7 +49,7 @@ const BookingPage: React.FC = () => {
   }, [step, selectedSeats, toggleSeat])
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-(--bg-primary)">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <Header />
       {content}
     </div>

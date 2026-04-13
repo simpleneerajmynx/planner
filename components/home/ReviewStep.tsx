@@ -3,9 +3,11 @@
 import React from "react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
 import { Seat } from "@/types/seat"
-import { GamepadDirectional } from "lucide-react"
+import { GamepadDirectional, Loader2 } from "lucide-react"
 import { Card } from "../ui/card"
 import { Button } from "../ui/button"
+import { Input } from "../ui/input"
+import { siteConfig } from "@/config/site"
 
 const CATEGORY_LABEL: Record<Seat["category"], string> = {
   floor: "Floor",
@@ -16,10 +18,19 @@ const CATEGORY_LABEL: Record<Seat["category"], string> = {
 
 const ReviewStep: React.FC = () => {
   const { selectedSeats, setStep } = useBookingStore()
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const subtotal = selectedSeats.reduce((s, seat) => s + seat.price, 0)
   const fee = Math.round(subtotal * 0.12)
   const total = subtotal + fee
+
+  const handleConfirm = () => {
+    setIsSubmitting(true)
+    setTimeout(() => {
+      setIsSubmitting(false)
+      setStep(BookingStep.CONFIRM)
+    }, 1500)
+  }
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-8">
@@ -66,7 +77,53 @@ const ReviewStep: React.FC = () => {
             Confirm your seat selection before checkout
           </p>
         </div>
+        {/* Payment Details */}
+        <div
+          className="px-8 py-5"
+          style={{
+            background: "var(--bg-elevated)",
+            borderTop: "1px solid var(--border-subtle)",
+          }}
+        >
+          <h3 className="mb-4 text-xs font-bold tracking-widest text-zinc-500 dark:text-zinc-400">
+            PAYER INFORMATION
+          </h3>
+          <div className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Input
+                placeholder="First Name"
+                className="flex-1 rounded-xl bg-transparent"
+              />
+              <Input
+                placeholder="Last Name"
+                className="flex-1 rounded-xl bg-transparent"
+              />
+            </div>
+            <Input
+              placeholder="Email Address"
+              type="email"
+              className="rounded-xl bg-transparent"
+            />
 
+            {/* <h3 className="mt-6 mb-4 text-xs font-bold tracking-widest text-zinc-500 dark:text-zinc-400">
+              PAYMENT METHOD
+            </h3>
+            <Input
+              placeholder="Card Number (0000 0000 0000 0000)"
+              className="rounded-xl bg-transparent font-mono text-sm"
+            />
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Input
+                placeholder="MM/YY"
+                className="flex-1 rounded-xl bg-transparent font-mono text-sm"
+              />
+              <Input
+                placeholder="CVC"
+                className="w-full rounded-xl bg-transparent px-3 py-2 font-mono text-sm sm:w-24"
+              />
+            </div> */}
+          </div>
+        </div>
         {/* Event Info */}
         <div
           className="flex shrink-0 items-center gap-4 px-8 py-5"
@@ -76,7 +133,7 @@ const ReviewStep: React.FC = () => {
           }}
         >
           <div
-            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
             style={{
               background: "rgba(59,130,246,0.12)",
               border: "1px solid rgba(59,130,246,0.2)",
@@ -92,7 +149,7 @@ const ReviewStep: React.FC = () => {
                 letterSpacing: 2,
               }}
             >
-              CHAMPIONSHIP FINALS 2026
+              {siteConfig.event.name}
             </div>
             <div
               style={{
@@ -102,7 +159,8 @@ const ReviewStep: React.FC = () => {
                 marginTop: 2,
               }}
             >
-              Sat, May 10 · 7:30 PM · StadiumX Arena
+              {siteConfig.event.date} · {siteConfig.event.time} ·{" "}
+              {siteConfig.event.venue}
             </div>
           </div>
         </div>
@@ -223,13 +281,23 @@ const ReviewStep: React.FC = () => {
         </div>
 
         {/* CTA */}
-        <div className="flex shrink-0 items-center justify-center px-8 pt-5 pb-8">
+        <div
+          className="flex shrink-0 items-center justify-center px-8 pt-2 pb-8"
+          style={{ background: "var(--bg-elevated)" }}
+        >
           <Button
             size={"lg"}
-            onClick={() => setStep(BookingStep.CONFIRM)}
-            className="w-full"
+            disabled={isSubmitting}
+            onClick={handleConfirm}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl font-bold tracking-wide"
           >
-            CONFIRM &amp; PAY ${total}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" /> Processing...
+              </>
+            ) : (
+              `CONFIRM & PAY $${total}`
+            )}
           </Button>
         </div>
       </Card>

@@ -5,6 +5,7 @@ import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { GamepadDirectional } from "lucide-react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
+import { siteConfig } from "@/config/site"
 
 const Header: React.FC = () => {
   const { selectedSeats, step, setStep } = useBookingStore()
@@ -47,13 +48,13 @@ const Header: React.FC = () => {
           <GamepadDirectional className="h-4 w-4" />
         </div>
         <span className="font-display text-lg font-light text-foreground">
-          PLANNER
+          {siteConfig.name}
         </span>
       </div>
       <div className="hidden items-center gap-3 rounded-full px-4 py-1 font-mono text-accent-foreground md:flex">
-        <span className="font-display text-xs">Championship Finals 2026</span>
+        <span className="font-display text-xs">{siteConfig.event.nameTitleCase}</span>
         <span>·</span>
-        <span className="font-mono text-xs">Sat, May 10 | 7:30 PM</span>
+        <span className="font-mono text-xs">{siteConfig.event.date} | {siteConfig.event.time}</span>
       </div>
       {renderButton}
     </header>

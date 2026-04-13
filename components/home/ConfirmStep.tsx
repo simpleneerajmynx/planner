@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from "react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
+import { siteConfig } from "@/config/site"
 
 const ConfirmStep: React.FC = () => {
   const { selectedSeats, clearSelection, setStep, resetZoom } =
@@ -228,7 +229,7 @@ const ConfirmStep: React.FC = () => {
                   letterSpacing: 1,
                 }}
               >
-                MAY 10
+                {siteConfig.event.shortDate}
               </div>
               <div
                 style={{
