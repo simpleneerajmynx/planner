@@ -10,6 +10,8 @@ import { ACTIVE_THEME, H, SEAT_R, W, ZOOM_BREAKPOINTS } from "./config"
 import SeatTooltip from "./tooltip"
 import BlockTooltip from "./block-tooltip"
 import StadiumControls from "./stadium-controls"
+import { useHotkeys } from "react-hotkeys-hook"
+import { AppShortcuts } from "@/types/shortcuts"
 
 type Props = {
   sections: Section[]
@@ -59,6 +61,30 @@ export default function StadiumSeatSelector({
 
   const hoveredSeatRef = useRef<GlobalSeat | null>(null)
   const blockTooltipRef = useRef<string | null>(null)
+
+  const sectionColorMapRef = useRef<Record<string, string>>({})
+  const seatColorMapRef = useRef<Record<string, string>>({})
+
+  useEffect(() => {
+    const nextSectionColorMap: Record<string, string> = {}
+    const nextSeatColorMap: Record<string, string> = {}
+    
+    sections.forEach(s => {
+      if (s.seats.length > 0) {
+        nextSectionColorMap[s.id] = s.seats[0].color || ACTIVE_THEME.tooltip.availableBg
+      }
+      s.seats.forEach(seat => {
+         nextSeatColorMap[seat.id] = seat.color || ACTIVE_THEME.tooltip.availableBg
+      })
+    })
+
+    sectionColorMapRef.current = nextSectionColorMap
+    seatColorMapRef.current = nextSeatColorMap
+
+    if (drawRef.current) {
+      requestAnimationFrame(drawRef.current)
+    }
+  }, [sections])
 
   const hideTooltipTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -206,13 +232,10 @@ export default function StadiumSeatSelector({
     let transform = getInitialTransform()
     const allSeats = sectionsRef.current.flatMap((s) => s.seats)
 
-    // Pre-process section colors and available counts for blocks
-    const sectionColorMap: Record<string, string> = {}
+    // sectionAvailableCount is still computed once, but colors read from ref dynamically
     const sectionAvailableCount: Record<string, number> = {}
     sectionsRef.current.forEach((s) => {
       if (s.seats.length > 0) {
-        sectionColorMap[s.id] =
-          s.seats[0].color || ACTIVE_THEME.tooltip.availableBg
         sectionAvailableCount[s.id] = s.seats.filter(
           (seat) => seat.status === "available"
         ).length
@@ -268,6 +291,16 @@ export default function StadiumSeatSelector({
       const K_SCALE_FACTOR = transform.k
       const isDarkMode = document.documentElement.classList.contains("dark")
 
+      // Per-block selected seat count — uses seatById built once outside draw()
+      const sectionSelectedCount: Record<string, number> = {}
+      selectedSeatIdsRef.current.forEach((id) => {
+        const seat = seatById?.get(id)
+        if (seat?.section) {
+          sectionSelectedCount[seat.section] =
+            (sectionSelectedCount[seat.section] ?? 0) + 1
+        }
+      })
+
       // ── Block Backgrounds ──────────────────────────────────────────────────
       BLOCK_BACKGROUNDS.forEach((b) => {
         context.save()
@@ -277,7 +310,7 @@ export default function StadiumSeatSelector({
           context.translate(-b.cx, -b.cy)
         }
 
-        const baseColor = sectionColorMap[b.type]
+        const baseColor = sectionColorMapRef.current[b.type]
         let fillStyle = isDarkMode ? "#27272a" : ACTIVE_THEME.block.fill
         let strokeStyle = isDarkMode ? "#3f3f46" : ACTIVE_THEME.block.stroke
 
@@ -321,7 +354,7 @@ export default function StadiumSeatSelector({
         }
         context.restore()
 
-        // ── Available Seat Count Overlay ───────────────────────────────────────
+        // ── Available Seat Count Overlay ─────────────────────────────────────
         if (K_SCALE_FACTOR < ZOOM_BREAKPOINTS.TRANSITION_ZOOM) {
           const count = sectionAvailableCount[b.type] ?? 0
           if (count > 0) {
@@ -369,7 +402,7 @@ export default function StadiumSeatSelector({
 
             // Background is a darker derivation of the block tier color
             const tierColor =
-              sectionColorMap[b.type] || (isDarkMode ? "#ffffff" : "#18181b")
+              sectionColorMapRef.current[b.type] || (isDarkMode ? "#ffffff" : "#18181b")
             const badgeBgColor =
               d3.color(tierColor)?.darker(0.8)?.toString() || tierColor
 
@@ -383,6 +416,44 @@ export default function StadiumSeatSelector({
             // Text color is crisp white for legibility against the darker badge
             context.fillStyle = "#ffffff"
             context.fillText(text, textX, textY + 0.5)
+
+            // ── Selected count bubble ─────────────────────────────────────────
+            // Small glowing green pip offset to top-right of the main badge
+            // const selCount = sectionSelectedCount[b.type] ?? 0
+            // if (selCount > 0) {
+            //   const bubbleR   = 11
+            //   const bubbleX   = textX + badgeW / 2 + bubbleR * 0.6
+            //   const bubbleY   = textY - badgeH / 2 - bubbleR * 0.4
+
+            //   // Outer glow ring
+            //   context.beginPath()
+            //   context.arc(bubbleX, bubbleY, bubbleR + 3.5, 0, Math.PI * 2)
+            //   context.fillStyle = "rgba(34,197,94,0.20)"
+            //   context.shadowColor = "rgba(34,197,94,0.55)"
+            //   context.shadowBlur  = 8
+            //   context.fill()
+
+            //   // Green pill background
+            //   context.beginPath()
+            //   context.arc(bubbleX, bubbleY, bubbleR, 0, Math.PI * 2)
+            //   context.fillStyle = "#16a34a"   // green-700
+            //   context.shadowColor = "rgba(22,163,74,0.7)"
+            //   context.shadowBlur  = 6
+            //   context.shadowOffsetY = 2
+            //   context.fill()
+
+            //   // Reset shadow
+            //   context.shadowBlur = 0
+            //   context.shadowOffsetY = 0
+
+            //   // White count text
+            //   context.font = "800 12px sans-serif"
+            //   context.textAlign = "center"
+            //   context.textBaseline = "middle"
+            //   context.fillStyle = "#ffffff"
+            //   context.fillText(selCount.toString(), bubbleX, bubbleY + 0.5)
+            // }
+
             context.restore()
           }
         }
@@ -390,7 +461,7 @@ export default function StadiumSeatSelector({
 
       if (K_SCALE_FACTOR <= ZOOM_BREAKPOINTS.TRANSITION_ZOOM) {
         if (blockTooltipRef.current) {
-          const baseColor = sectionColorMap[blockTooltipRef.current]
+          const baseColor = sectionColorMapRef.current[blockTooltipRef.current]
           if (baseColor) {
             const d3c = d3.color(baseColor)
             if (d3c) {
@@ -414,112 +485,186 @@ export default function StadiumSeatSelector({
       context.globalAlpha =
         K_SCALE_FACTOR < ZOOM_BREAKPOINTS.TRANSITION_ZOOM ? 0.15 : 1
 
+      const now = performance.now()
+      const BOUNCE_DURATION = 500 // ms — scale bounce on click
+      const RIPPLE_DURATION = 750 // ms — expanding ring burst
+
       for (let i = 0; i < allSeats.length; i++) {
         const d = allSeats[i]
         if (hoveredSeatRef.current?.id === d.id) continue
 
-        let fill = d.color || ACTIVE_THEME.seat.availableFallback
-        let strokeWidth = 0
-        let strokeColor = "none"
+        const isSelected = selectedSeatIdsRef.current?.has(d?.id)
+        const seatColor = seatColorMapRef.current[d.id] || d.color || ACTIVE_THEME.seat.selectedStroke
 
         if (d.status !== "available") {
-          fill =
+          // ── Sold / unavailable ───────────────────────────────────────────────
+          context.beginPath()
+          context.arc(d.x, d.y, SEAT_R, 0, Math.PI * 2)
+          context.fillStyle =
             isDarkMode && ACTIVE_THEME.seat.sold === "#dededf"
               ? "#3f3f46"
               : ACTIVE_THEME.seat.sold
-        } else if (selectedSeatIdsRef.current.has(d.id)) {
-          fill = ACTIVE_THEME.seat.selectedFill
-          strokeWidth = 1
-          strokeColor = ACTIVE_THEME.seat.selectedStroke
-        }
-
-        context.beginPath()
-        context.arc(d.x, d.y, SEAT_R, 0, Math.PI * 2)
-        context.fillStyle = fill
-        context.fill()
-
-        if (strokeWidth > 0 && strokeColor !== "none") {
-          context.strokeStyle = strokeColor
-          context.lineWidth = strokeWidth
-          context.stroke()
+          context.fill()
+        } else if (isSelected) {
+          // ── Selected: white pill with colored outer ring ─────────────────────
+          // Outer colored ring
+          context.beginPath()
+          context.arc(d.x, d.y, SEAT_R + 1.5, 0, Math.PI * 2)
+          context.fillStyle = seatColor
+          context.fill()
+          // White inner disc
+          context.beginPath()
+          context.arc(d.x, d.y, SEAT_R - 0.5, 0, Math.PI * 2)
+          context.fillStyle = "#ffffff"
+          context.fill()
+        } else {
+          // ── Available ────────────────────────────────────────────────────────
+          context.beginPath()
+          context.arc(d.x, d.y, SEAT_R, 0, Math.PI * 2)
+          context.fillStyle = seatColor
+          context.fill()
         }
       }
 
+      // ── Hovered seat ─────────────────────────────────────────────────────────
       if (hoveredSeatRef.current) {
         const d = hoveredSeatRef.current
+        const isSelectedHover = selectedSeatIdsRef.current.has(d.id)
+        const seatColor = seatColorMapRef.current[d.id] || d.color || ACTIVE_THEME.seat.hover
+        const d3c = d3.color(seatColor)
 
-        // ── Dynamic Hover Background ───────────────────────────────────────────
-        const d3c = d.color
-          ? d3.color(d.color)
-          : d3.color(ACTIVE_THEME.seat.hover)
-
+        // Outer halo glow (soft, wide)
         context.beginPath()
-        context.arc(d.x, d.y, SEAT_R + 3, 0, Math.PI * 2)
+        context.arc(d.x, d.y, SEAT_R + 5.5, 0, Math.PI * 2)
         if (d3c) {
-          // [CHANGE HERE] Adjust opacity for dynamic hover radius highlight
-          d3c.opacity = isDarkMode ? 0.35 : 0.25
+          d3c.opacity = isDarkMode ? 0.22 : 0.15
           context.fillStyle = d3c.toString()
-        } else {
-          context.fillStyle = ACTIVE_THEME.seat.hover
         }
         context.fill()
 
-        // Dynamic outline ring
+        // Inner ring
         context.beginPath()
-        context.arc(d.x, d.y, SEAT_R + 3, 0, Math.PI * 2)
+        context.arc(d.x, d.y, SEAT_R + 2.5, 0, Math.PI * 2)
         if (d3c) {
-          d3c.opacity = isDarkMode ? 0.8 : 0.6
+          d3c.opacity = isDarkMode ? 0.75 : 0.6
           context.strokeStyle = d3c.toString()
-          context.lineWidth = 1
+          context.lineWidth = 1.2
         }
         context.stroke()
+
+        // Seat body (selected or available)
+        if (isSelectedHover) {
+          context.beginPath()
+          context.arc(d.x, d.y, SEAT_R + 1.5, 0, Math.PI * 2)
+          context.fillStyle = seatColor
+          context.fill()
+          context.beginPath()
+          context.arc(d.x, d.y, SEAT_R - 0.5, 0, Math.PI * 2)
+          context.fillStyle = "#ffffff"
+          context.fill()
+        } else {
+          context.beginPath()
+          context.arc(d.x, d.y, SEAT_R, 0, Math.PI * 2)
+          context.fillStyle = seatColor
+          context.fill()
+        }
       }
 
-      // ── Checkmarks ─────────────────────────────────────────────────────────
-      context.lineWidth = 1.5
-      context.strokeStyle = ACTIVE_THEME.seat.selectedStroke
+      // ── Selected seat animations + checkmarks ────────────────────────────────
+      let isAnimating = false
       context.lineCap = "round"
       context.lineJoin = "round"
 
-      let isAnimating = false
-      const now = performance.now()
-      // [CHANGE HERE] Adjust pop animation duration (in ms)
-      const CHECKMARK_ANIM_DURATION = 350
-
       for (let i = 0; i < allSeats.length; i++) {
         const d = allSeats[i]
-        if (selectedSeatIdsRef.current.has(d.id)) {
-          const startTime = seatAnimationTimesRef.current[d.id] || now
-          const elapsed = now - startTime
-          let progress = elapsed / CHECKMARK_ANIM_DURATION
-          if (progress < 1) isAnimating = true
-          if (progress > 1) progress = 1
+        if (!selectedSeatIdsRef.current.has(d.id)) continue
 
-          // Easing: easeOutBack for a bouncy pop effect
-          const scale =
-            1 +
-            2.70158 * Math.pow(progress - 1, 3) +
-            1.70158 * Math.pow(progress - 1, 2)
+        const seatColor = seatColorMapRef.current[d.id] || d.color || ACTIVE_THEME.seat.selectedStroke
+        const startTime = seatAnimationTimesRef.current[d.id] || now
+        const elapsed = now - startTime
+        const bounceT = Math.min(elapsed / BOUNCE_DURATION, 1)
+        const rippleT = Math.min(elapsed / RIPPLE_DURATION, 1)
+        if (bounceT < 1 || rippleT < 1) isAnimating = true
 
-          context.save()
-          context.translate(d.x, d.y)
-          // Ensure negative scales from bounce math don't break rendering
-          const safeScale = Math.max(0, scale)
-          context.scale(safeScale, safeScale)
-
-          context.beginPath()
-          context.moveTo(-1.5, +0.5)
-          context.lineTo(-0.5, +1.5)
-          context.lineTo(+1.5, -1.5)
-          context.stroke()
-
-          context.restore()
+        // ── 1. Ripple burst — expanding ring that fades out ──────────────────
+        if (rippleT < 1) {
+          // easeOutExpo
+          const rp = rippleT === 1 ? 1 : 1 - Math.pow(2, -10 * rippleT)
+          const rippleR = SEAT_R + 1.5 + rp * SEAT_R * 4.5
+          const rippleAlpha = (1 - rp) * 0.75
+          const rc = d3.color(seatColor)
+          if (rc) {
+            rc.opacity = rippleAlpha
+            context.beginPath()
+            context.arc(d.x, d.y, rippleR, 0, Math.PI * 2)
+            context.strokeStyle = rc.toString()
+            context.lineWidth = 2
+            context.stroke()
+          }
+          // Second inner ripple ring (delayed slightly)
+          const rp2 = Math.max(0, rippleT - 0.15) / 0.85
+          if (rp2 > 0) {
+            const rippleR2 = SEAT_R + 1.5 + rp2 * SEAT_R * 2.5
+            const rippleAlpha2 = (1 - rp2) * 0.45
+            const rc2 = d3.color(seatColor)
+            if (rc2) {
+              rc2.opacity = rippleAlpha2
+              context.beginPath()
+              context.arc(d.x, d.y, rippleR2, 0, Math.PI * 2)
+              context.strokeStyle = rc2.toString()
+              context.lineWidth = 1.2
+              context.stroke()
+            }
+          }
         }
+
+        // ── 2. Scale bounce — seat pops in with easeOutBack ──────────────────
+        // c1=1.70158, c3=c1+1 — standard easeOutBack coefficients
+        const c1 = 1.70158
+        const c3 = c1 + 1
+        const scale =
+          bounceT < 1
+            ? Math.max(
+                0,
+                1 +
+                  c3 * Math.pow(bounceT - 1, 3) +
+                  c1 * Math.pow(bounceT - 1, 2)
+              )
+            : 1
+
+        // ── 3. Checkmark — bold, proportional tick in seat's own color ────────
+        context.save()
+        context.translate(d.x, d.y)
+        context.scale(scale, scale)
+
+        // Re-draw the white+ring at the bounced scale so it pops cleanly
+        if (bounceT < 1) {
+          context.beginPath()
+          context.arc(0, 0, SEAT_R + 1.5, 0, Math.PI * 2)
+          context.fillStyle = seatColor
+          context.fill()
+          context.beginPath()
+          context.arc(0, 0, SEAT_R - 0.5, 0, Math.PI * 2)
+          context.fillStyle = "#ffffff"
+          context.fill()
+        }
+
+        // Bold tick — arms proportional to SEAT_R for crisp rendering at any zoom
+        const cr = SEAT_R * 0.5
+        context.beginPath()
+        context.moveTo(-cr * 0.6, cr * 0.05)
+        context.lineTo(-cr * 0.05, cr * 0.6)
+        context.lineTo(cr * 0.72, -cr * 0.52)
+        context.strokeStyle = seatColor
+        context.lineWidth = SEAT_R * 0.42 // scales with seat radius
+        context.stroke()
+
+        context.restore()
       }
 
       context.restore()
 
-      // Keep drawing loop alive if animations are active!
+      // Keep drawing loop alive while any animation is running
       if (isAnimating && drawRef.current) {
         requestAnimationFrame(drawRef.current)
       }
@@ -547,6 +692,9 @@ export default function StadiumSeatSelector({
     canvasSel.on("dblclick", () => resetZoom())
 
     // ── Interaction ─────────────────────────────────────────────────────────
+    // seatById — built once, shared by both pointermove and selected-count badge
+    const seatById = new Map(allSeats?.map((s) => [s?.id, s]))
+
     const quadtree = d3
       .quadtree<GlobalSeat>()
       .x((d) => d.x)
@@ -690,13 +838,55 @@ export default function StadiumSeatSelector({
     }
   }, [getInitialTransform, zoomToGroup, resetZoom, toggleSeat])
 
-  const zoomBy = (factor: number) => {
+  const zoomBy = useCallback((factor: number) => {
     if (!canvasRef.current || !zoomRef.current) return
     d3.select(canvasRef.current)
       .transition()
       .duration(300)
       .call(zoomRef.current.scaleBy, factor)
-  }
+  }, [])
+
+  useHotkeys(
+    AppShortcuts.ZOOM_IN,
+    (e) => {
+      e.preventDefault()
+      zoomBy(1.5)
+    },
+    { preventDefault: true },
+    [zoomBy]
+  )
+
+  useHotkeys(
+    AppShortcuts.ZOOM_OUT,
+    (e) => {
+      e.preventDefault()
+      zoomBy(0.667)
+    },
+    { preventDefault: true },
+    [zoomBy]
+  )
+
+  useHotkeys(
+    [AppShortcuts.RESET_ZOOM],
+    (e) => {
+      e.preventDefault()
+      resetZoom()
+    },
+    { preventDefault: true },
+    [resetZoom]
+  )
+
+  useHotkeys(
+    AppShortcuts.ESCAPE,
+    (e) => {
+      if (zoomedGroup) {
+        e.preventDefault()
+        resetZoom()
+      }
+    },
+    { enableOnFormTags: false },
+    [zoomedGroup, resetZoom]
+  )
 
   return (
     <div

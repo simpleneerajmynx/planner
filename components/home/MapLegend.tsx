@@ -3,21 +3,27 @@
 import React from "react"
 import { SEAT_COLORS } from "@/types/seat"
 import { useBookingStore } from "@/store/bookingStore"
+import { useAtomValue } from "jotai"
+import {
+  layoutTypeAtom,
+  capsuleTierColorsAtom,
+  colosseumTierColorsAtom,
+  rectangularTierColorsAtom,
+} from "@/app/seat-picker/store"
+import { CAPSULE_CONFIG, COLOSSEUM_CONFIG, RECTANGULAR_CONFIG } from "@/app/seat-picker/config"
 
 const LEGEND_ITEMS = [
   { label: "Available", color: SEAT_COLORS.available },
   { label: "Selected", color: SEAT_COLORS.selected },
-  { label: "VIP", color: SEAT_COLORS.vip },
   { label: "Taken", color: SEAT_COLORS.taken, border: SEAT_COLORS.takenStroke },
 ]
 
-const PRICE_ZONES = [
-  { label: "Floor", price: "$185", color: "#3b82f6" },
-  { label: "Lower Bowl", price: "$125", color: "#8b5cf6" },
-  { label: "Upper Bowl", price: "$85", color: "#f59e0b" },
-  { label: "Balcony", price: "$55", color: "#6b7280" },
-  { label: "VIP", price: "$450", color: "#b45309" },
-]
+const TIER_LABELS: Record<string, string> = {
+  "100": "Floor",
+  "200": "Lower Bowl",
+  "300": "Upper Bowl",
+  "400": "Nosebleed",
+}
 
 const MapLegend: React.FC = () => {
   const { seats } = useBookingStore()
@@ -25,6 +31,31 @@ const MapLegend: React.FC = () => {
     (s) => s.status === "available" || s.status === "vip"
   ).length
   const taken = seats.filter((s) => s.status === "taken").length
+
+  const layout = useAtomValue(layoutTypeAtom)
+  const capsuleColors = useAtomValue(capsuleTierColorsAtom)
+  const colosseumColors = useAtomValue(colosseumTierColorsAtom)
+  const rectColors = useAtomValue(rectangularTierColorsAtom)
+
+  const baseConfig =
+    layout === "capsule"
+      ? CAPSULE_CONFIG
+      : layout === "rectangular"
+        ? RECTANGULAR_CONFIG
+        : COLOSSEUM_CONFIG
+
+  const currentColors =
+    layout === "capsule"
+      ? capsuleColors
+      : layout === "rectangular"
+        ? rectColors
+        : colosseumColors
+
+  const priceZones = baseConfig.tiers.map((t) => ({
+    label: TIER_LABELS[t.id] ?? `Tier ${t.id}`,
+    price: `$${t.price}`,
+    color: currentColors[t.id] ?? t.color,
+  }))
 
   return (
     <div
@@ -88,9 +119,9 @@ const MapLegend: React.FC = () => {
         </span>
       </div>
 
-      {/* Right: Price zones */}
+      {/* Right: Dynamic tier price zones */}
       <div className="flex items-center gap-3">
-        {PRICE_ZONES.map((zone) => (
+        {priceZones.map((zone) => (
           <div key={zone.label} className="flex items-center gap-1">
             <span
               className="h-2 w-2 rounded-full"
