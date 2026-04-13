@@ -1,11 +1,11 @@
 export const siteConfig = {
-  name: "StadiumX",
+  name: "STADIUM SEATS",
   event: {
     name: "CHAMPIONSHIP FINALS 2026",
     nameTitleCase: "Championship Finals 2026",
     date: "Sat, May 10",
     time: "7:30 PM",
-    venue: "StadiumX Arena",
+    venue: "STADIUM SEATS ARENA",
     shortDate: "MAY 10",
   },
 }

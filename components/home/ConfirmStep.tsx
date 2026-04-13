@@ -1,8 +1,10 @@
 "use client"
 
+import { Button } from "../ui/button"
+import { siteConfig } from "@/config/site"
+import { PlusCircle } from "lucide-react"
 import React, { useEffect, useRef } from "react"
 import { BookingStep, useBookingStore } from "@/store/bookingStore"
-import { siteConfig } from "@/config/site"
 
 const ConfirmStep: React.FC = () => {
   const { selectedSeats, clearSelection, setStep, resetZoom } =
@@ -83,7 +85,7 @@ const ConfirmStep: React.FC = () => {
         style={{ zIndex: 0 }}
       />
       <div
-        className="animate-slide-up relative flex flex-col max-h-full overflow-y-auto w-full max-w-lg rounded-2xl text-center shadow-[0_0_80px_rgba(34,197,94,0.1)] drop-shadow-2xl"
+        className="animate-slide-up relative flex max-h-full w-full max-w-lg flex-col overflow-y-auto rounded-2xl text-center shadow-[0_0_80px_rgba(34,197,94,0.1)] drop-shadow-2xl"
         style={{
           background: "var(--bg-card)",
           border: "1px solid rgba(34,197,94,0.2)",
@@ -270,7 +272,7 @@ const ConfirmStep: React.FC = () => {
 
         {/* Actions */}
         <div className="space-y-3 px-8 py-6">
-          <button
+          {/* <button
             className="w-full rounded-xl py-3 text-sm font-medium transition-all"
             style={{
               background: "rgba(59,130,246,0.1)",
@@ -281,20 +283,16 @@ const ConfirmStep: React.FC = () => {
             }}
           >
             Download Tickets (PDF)
-          </button>
-          <button
+          </button> */}
+          <Button
+            size={"lg"}
+            className="w-full"
             onClick={handleBookAgain}
-            className="w-full rounded-xl py-3 text-sm transition-all hover:opacity-70"
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border-subtle)",
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-mono)",
-              cursor: "pointer",
-            }}
+            variant={"default"}
           >
+            <PlusCircle className="mr-2 h-4 w-4" />
             Book more seats
-          </button>
+          </Button>
         </div>
       </div>
     </div>
