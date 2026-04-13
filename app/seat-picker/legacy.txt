@@ -267,6 +267,7 @@ export default function StadiumSeatSelector({
 
       const K_SCALE_FACTOR = transform.k
       const isDarkMode = document.documentElement.classList.contains("dark")
+      const zoomProgress = Math.max(0, Math.min(1, (K_SCALE_FACTOR - ZOOM_BREAKPOINTS.TRANSITION_ZOOM) / (ZOOM_BREAKPOINTS.MICRO_ZOOM - ZOOM_BREAKPOINTS.TRANSITION_ZOOM)))
 
       // ── Block Backgrounds ──────────────────────────────────────────────────
       BLOCK_BACKGROUNDS.forEach((b) => {
@@ -282,25 +283,35 @@ export default function StadiumSeatSelector({
         let strokeStyle = isDarkMode ? "#3f3f46" : ACTIVE_THEME.block.stroke
 
         if (baseColor) {
-          const d3c = d3.color(baseColor)
-          if (d3c) {
-            if (K_SCALE_FACTOR <= ZOOM_BREAKPOINTS.TRANSITION_ZOOM) {
-              // [CHANGE HERE] Zoomed OUT (Macro View)
-              // Currently: light bg opacity (0.15 / 0.1), solid border
-              d3c.opacity = isDarkMode ? 0.15 : 0.1
-              fillStyle = d3c.toString()
-              strokeStyle = baseColor
-            } else {
-              // [CHANGE HERE] Zoomed IN (Micro View)
-              // Currently: transparent background, light border opacity (0.3 / 0.2)
-              fillStyle = "transparent"
-              d3c.opacity = isDarkMode ? 0.3 : 0.2
-              strokeStyle = d3c.toString()
+          const maxFillOp = isDarkMode ? 0.15 : 0.1
+          const fillOp = maxFillOp * (1 - zoomProgress)
+          if (fillOp > 0) {
+            const fillCol = d3.color(baseColor)
+            if (fillCol) {
+              fillCol.opacity = fillOp
+              fillStyle = fillCol.toString()
             }
+          } else {
+            fillStyle = "transparent"
+          }
+
+          const minBorderOp = isDarkMode ? 0.3 : 0.2
+          const strokeOp = 1.0 - zoomProgress * (1.0 - minBorderOp)
+          const strokeCol = d3.color(baseColor)
+          if (strokeCol) {
+            strokeCol.opacity = strokeOp
+            strokeStyle = strokeCol.toString()
           }
         } else {
-          if (K_SCALE_FACTOR > ZOOM_BREAKPOINTS.TRANSITION_ZOOM)
+          if (zoomProgress === 1) {
             fillStyle = "transparent"
+          } else {
+            const cFill = d3.color(fillStyle)
+            if (cFill) {
+               cFill.opacity = 1 - zoomProgress
+               fillStyle = cFill.toString()
+            }
+          }
         }
 
         context.fillStyle = fillStyle
@@ -322,10 +333,11 @@ export default function StadiumSeatSelector({
         context.restore()
 
         // ── Available Seat Count Overlay ───────────────────────────────────────
-        if (K_SCALE_FACTOR < ZOOM_BREAKPOINTS.TRANSITION_ZOOM) {
+        if (zoomProgress < 1) {
           const count = sectionAvailableCount[b.type] ?? 0
           if (count > 0) {
             context.save()
+            context.globalAlpha = 1 - zoomProgress
             let textX = b.x + b.w / 2
             let textY = b.y + b.h / 2
 
@@ -388,19 +400,21 @@ export default function StadiumSeatSelector({
         }
       })
 
-      if (K_SCALE_FACTOR <= ZOOM_BREAKPOINTS.TRANSITION_ZOOM) {
+      if (zoomProgress < 1) {
         if (blockTooltipRef.current) {
           const baseColor = sectionColorMap[blockTooltipRef.current]
           if (baseColor) {
             const d3c = d3.color(baseColor)
             if (d3c) {
-              d3c.opacity = isDarkMode ? 0.35 : 0.25
+              d3c.opacity = (isDarkMode ? 0.35 : 0.25) * (1 - zoomProgress)
               context.fillStyle = d3c.toString()
             }
           } else {
-            context.fillStyle = isDarkMode
-              ? "rgba(255,255,255,0.06)"
-              : ACTIVE_THEME.block.hoverFill
+            const fc = d3.color(isDarkMode ? "rgba(255,255,255,0.06)" : ACTIVE_THEME.block.hoverFill)
+            if (fc) {
+              fc.opacity = fc.opacity * (1 - zoomProgress)
+              context.fillStyle = fc.toString()
+            }
           }
           for (const z of hitZonePaths) {
             if (z.group === blockTooltipRef.current) {
@@ -411,8 +425,7 @@ export default function StadiumSeatSelector({
       }
 
       // ── Seats ──────────────────────────────────────────────────────────────
-      context.globalAlpha =
-        K_SCALE_FACTOR < ZOOM_BREAKPOINTS.TRANSITION_ZOOM ? 0.15 : 1
+      context.globalAlpha = 0.15 + zoomProgress * 0.85
 
       for (let i = 0; i < allSeats.length; i++) {
         const d = allSeats[i]
