@@ -43,14 +43,14 @@ const BlockTooltip = forwardRef<HTMLDivElement, BlockTooltipProps>(
         className="absolute z-50 -translate-x-1/2 -translate-y-[calc(100%+16px)] transform drop-shadow-2xl transition-all duration-75 ease-out"
         style={{ left: x, top: y - 15 }}
       >
-        <div className="flex w-[260px] flex-col overflow-hidden rounded-[18px] bg-white shadow-lg ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div className="flex min-w-72 flex-col overflow-hidden rounded-3xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10">
           {/* Top section */}
           <div className="flex h-[72px] bg-white dark:bg-zinc-900">
             <div className="flex flex-1 flex-col items-center justify-center border-r border-[#f0f0f4] dark:border-zinc-800">
               <span className="mb-0.5 text-[10px] font-bold tracking-wider text-gray-400">
                 SECTION
               </span>
-              <span className="text-[22px] leading-none font-black text-[#18181b] dark:text-white">
+              <span className="text-xl leading-none font-black text-accent-foreground">
                 {group?.replace(/T|-|_/g, " ").trim() || "100"}
               </span>
             </div>
@@ -58,7 +58,7 @@ const BlockTooltip = forwardRef<HTMLDivElement, BlockTooltipProps>(
               <span className="mb-0.5 text-[10px] font-bold tracking-wider text-gray-400">
                 AVAILABLE
               </span>
-              <span className="text-[22px] leading-none font-black text-[#18181b] dark:text-white">
+              <span className="text-xl leading-none font-black text-accent-foreground">
                 {available}
               </span>
             </div>
@@ -66,7 +66,7 @@ const BlockTooltip = forwardRef<HTMLDivElement, BlockTooltipProps>(
               <span className="mb-0.5 text-[10px] font-bold tracking-wider text-gray-400">
                 TOTAL
               </span>
-              <span className="text-[22px] leading-none font-black text-[#18181b] dark:text-white">
+              <span className="text-xl leading-none font-black text-accent-foreground">
                 {total}
               </span>
             </div>
@@ -95,8 +95,8 @@ const BlockTooltip = forwardRef<HTMLDivElement, BlockTooltipProps>(
               </div>
             </div>
             {available > 0 && (
-              <span className="text-[22px] font-bold tracking-tight text-white">
-                {price} €
+              <span className="text-xl font-bold tracking-tight text-white">
+                ${price}
               </span>
             )}
           </div>

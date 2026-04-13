@@ -38,14 +38,14 @@ const TIER_LABEL: Record<string, string> = {
 // Think of it as: "I am sitting on the North side → I look South
 //   → I see the South stand which is at the X=50 centre of the image"
 const DIR_OBJ_X: Record<string, number> = {
-  N:  50,   // North stand: look south → centre of image
-  S:  50,   // South stand: look north → centre of image
-  E:  15,   // East end-zone: look west → left portion (west side) of image
-  W:  85,   // West end-zone: look east → right portion (east side)
-  NE: 25,   // NE corner: look SW → slightly left-of-centre
-  NW: 75,   // NW corner: look SE → slightly right-of-centre
-  SE: 25,   // SE corner: look NW → slightly left
-  SW: 75,   // SW corner: look NE → slightly right
+  N: 50, // North stand: look south → centre of image
+  S: 50, // South stand: look north → centre of image
+  E: 15, // East end-zone: look west → left portion (west side) of image
+  W: 85, // West end-zone: look east → right portion (east side)
+  NE: 25, // NE corner: look SW → slightly left-of-centre
+  NW: 75, // NW corner: look SE → slightly right-of-centre
+  SE: 25, // SE corner: look NW → slightly left
+  SW: 75, // SW corner: look NE → slightly right
 }
 
 type ViewParams = {
@@ -138,7 +138,7 @@ const SeatTooltip = forwardRef<HTMLDivElement, TooltipProps>(
           className="absolute z-50 -translate-x-1/2 -translate-y-[calc(100%+16px)] transform drop-shadow-2xl"
           style={{ left: x, top: y - 15 }}
         >
-          <div className="flex w-[290px] flex-col overflow-hidden rounded-[18px] bg-white shadow-lg ring-1 ring-black/5">
+          <div className="flex w-72 flex-col overflow-hidden rounded-3xl bg-white shadow-lg ring-1 ring-black/5">
             {/* ── Stadium Preview Image ──────────────────────────────────────── */}
             <div
               className="group relative h-[130px] w-full cursor-pointer overflow-hidden bg-gray-900"
@@ -159,7 +159,7 @@ const SeatTooltip = forwardRef<HTMLDivElement, TooltipProps>(
               />
 
               {/* Tinted gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/65 via-black/10 to-transparent" />
 
               {/* VIEW FROM SEAT badge — top-left */}
               <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 ring-1 ring-white/10 backdrop-blur-sm">
@@ -265,7 +265,7 @@ const SeatTooltip = forwardRef<HTMLDivElement, TooltipProps>(
                   </div>
                 </div>
                 <span className="text-[20px] font-bold tracking-tight text-white">
-                  {seat.price} €
+                  ${seat.price}
                 </span>
               </div>
             ) : (
@@ -290,7 +290,7 @@ const SeatTooltip = forwardRef<HTMLDivElement, TooltipProps>(
                   </div>
                 </div>
                 <span className="text-[20px] font-bold tracking-tight text-white">
-                  {seat.price} €
+                  ${seat.price}
                 </span>
               </div>
             )}

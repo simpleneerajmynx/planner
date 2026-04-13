@@ -72,7 +72,7 @@ const SidebarSection = ({
   seed: number
 }) => (
   <div className={`flex flex-col ${widthClass}`}>
-    <div className="flex h-[52px] items-center justify-center rounded-t-lg bg-[#e4e4e6] text-[22px] font-bold tracking-wide text-[#7a7a82] select-none">
+    <div className="flex h-[52px] items-center justify-center rounded-t-lg bg-[#e4e4e6] text-xl font-bold tracking-wide text-[#7a7a82] select-none">
       {title}
     </div>
     <div className="flex flex-1 flex-col items-center gap-3.5 rounded-b-lg bg-white p-3.5 shadow-sm">

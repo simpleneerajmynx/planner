@@ -37,14 +37,20 @@ export default function StadiumViewModal({
   const rafRef = useRef<number | null>(null)
   const [mounted, setMounted] = useState(false)
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const baseTilt = getBaseTiltFromRow(seat.row)
 
   // ── Spring state (mutated in rAF, never causes re-renders) ───────────────────
   const spring = useRef({
-    rotX: baseTilt, rotY: 0, scale: 1.02,
-    vX: 0, vY: 0, vS: 0,
+    rotX: baseTilt,
+    rotY: 0,
+    scale: 1.02,
+    vX: 0,
+    vY: 0,
+    vS: 0,
   })
   const mouse = useRef({ nx: 0, ny: 0 }) // normalised -1 → +1
 
@@ -59,33 +65,32 @@ export default function StadiumViewModal({
     const my = mouse.current.ny
 
     // Target state derived from mouse position
-    const targetRotX  = baseTilt - my * 5          // pitch: tilt up/down
-    const targetRotY  = mx * 8                      // yaw: tilt left/right
+    const targetRotX = baseTilt - my * 5 // pitch: tilt up/down
+    const targetRotY = mx * 8 // yaw: tilt left/right
     const targetScale = 1.04 + Math.abs(mx) * 0.01 + Math.abs(my) * 0.006
 
     // Spring physics — stiffness = how snappy, damping = how much drag
     const stiffness = 0.055
-    const damping   = 0.80
+    const damping = 0.8
 
-    sp.vX += (targetRotX  - sp.rotX)  * stiffness
-    sp.vY += (targetRotY  - sp.rotY)  * stiffness
+    sp.vX += (targetRotX - sp.rotX) * stiffness
+    sp.vY += (targetRotY - sp.rotY) * stiffness
     sp.vS += (targetScale - sp.scale) * stiffness
 
     sp.vX *= damping
     sp.vY *= damping
     sp.vS *= damping
 
-    sp.rotX  += sp.vX
-    sp.rotY  += sp.vY
+    sp.rotX += sp.vX
+    sp.rotY += sp.vY
     sp.scale += sp.vS
 
     // Apply transform
-    el.style.transform =
-      `perspective(1000px) rotateX(${sp.rotX.toFixed(3)}deg) rotateY(${sp.rotY.toFixed(3)}deg) scale(${sp.scale.toFixed(4)})`
+    el.style.transform = `perspective(1000px) rotateX(${sp.rotX.toFixed(3)}deg) rotateY(${sp.rotY.toFixed(3)}deg) scale(${sp.scale.toFixed(4)})`
 
     // Shift glare opposite to tilt — simulates real surface light reflection
     if (gl) {
-      const gx = 50 + sp.rotY * -3   // glare moves left when rotated right
+      const gx = 50 + sp.rotY * -3 // glare moves left when rotated right
       const gy = 50 + sp.rotX * -2
       gl.style.background = `
         radial-gradient(
@@ -130,15 +135,20 @@ export default function StadiumViewModal({
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
-      mouse.current.nx = (e.clientX - (rect.left + rect.width  / 2)) / (rect.width  / 2)
-      mouse.current.ny = (e.clientY - (rect.top  + rect.height / 2)) / (rect.height / 2)
+      mouse.current.nx =
+        (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2)
+      mouse.current.ny =
+        (e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2)
       startSpring()
     }
 
     window.addEventListener("mousemove", handleMove, { passive: true })
     return () => {
       window.removeEventListener("mousemove", handleMove)
-      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
     }
   }, [open, startSpring])
 
@@ -146,21 +156,30 @@ export default function StadiumViewModal({
   useEffect(() => {
     if (!open) {
       mouse.current = { nx: 0, ny: 0 }
-      spring.current = { rotX: baseTilt, rotY: 0, scale: 1.02, vX: 0, vY: 0, vS: 0 }
+      spring.current = {
+        rotX: baseTilt,
+        rotY: 0,
+        scale: 1.02,
+        vX: 0,
+        vY: 0,
+        vS: 0,
+      }
     }
   }, [open, baseTilt])
 
   // Keyboard Escape
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
   const sectionLabel = seat.section?.replace(/T|-|_/g, " ").trim() || "134"
-  const rowLabel     = (parseInt(String(seat.row)) + 1).toString()
-  const seatLabel    = (seat.number + 1).toString()
+  const rowLabel = (parseInt(String(seat.row)) + 1).toString()
+  const seatLabel = (seat.number + 1).toString()
 
   if (!mounted) return null
 
@@ -182,11 +201,11 @@ export default function StadiumViewModal({
           {/* ── Modal card ─────────────────────────────────────────────────── */}
           <motion.div
             key="stadium-modal-card"
-            className="relative z-10 w-full max-w-[660px] mx-4"
+            className="relative z-10 mx-4 w-full max-w-[660px]"
             // Cinematic entrance: card swings in from above
-            initial={{ scale: 0.80, opacity: 0, y: 40, rotateX: 16 }}
-            animate={{ scale: 1,    opacity: 1, y: 0,  rotateX: 0  }}
-            exit={{   scale: 0.88,  opacity: 0, y: 16              }}
+            initial={{ scale: 0.8, opacity: 0, y: 40, rotateX: 16 }}
+            animate={{ scale: 1, opacity: 1, y: 0, rotateX: 0 }}
+            exit={{ scale: 0.88, opacity: 0, y: 16 }}
             transition={{
               type: "spring",
               damping: 18,
@@ -270,12 +289,12 @@ export default function StadiumViewModal({
                 </button>
 
                 {/* Info row */}
-                <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between px-5 py-4">
+                <div className="absolute right-0 bottom-0 left-0 flex items-end justify-between px-5 py-4">
                   <div className="flex flex-col">
                     <span className="text-[11px] font-medium tracking-wider text-white/55">
                       SEAT PREVIEW
                     </span>
-                    <span className="text-[22px] font-black leading-tight text-white drop-shadow">
+                    <span className="text-xl leading-tight font-black text-white drop-shadow">
                       Section {sectionLabel}
                     </span>
                     <span className="text-[13px] font-semibold text-white/80">
@@ -295,8 +314,8 @@ export default function StadiumViewModal({
                     <span className="text-[10px] font-bold tracking-wider text-white/75">
                       PRICE
                     </span>
-                    <span className="text-[20px] font-black leading-none text-white">
-                      {seat.price} €
+                    <span className="text-[20px] leading-none font-black text-white">
+                      ${seat.price}
                     </span>
                   </div>
                 </div>
